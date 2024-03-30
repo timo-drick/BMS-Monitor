@@ -1,0 +1,268 @@
+package de.drick.bmsmonitor.bluetooth
+
+import android.annotation.SuppressLint
+import android.annotation.TargetApi
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
+import android.bluetooth.BluetoothGattService
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
+import android.content.Context
+import de.drick.compose.permission.ManifestPermission
+import de.drick.compose.permission.checkPermission
+import de.drick.log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
+import java.util.UUID
+
+/**
+ * Sources:
+ * https://punchthrough.com/android-ble-guide/
+ * https://github.com/syssi/esphome-jk-bms/blob/main/docs/protocol-design.md
+ * Bluetooth analyzing: https://source.android.com/docs/core/connect/bluetooth/verifying_debugging#debugging-with-bug-reports
+ * Official Android documentation:
+ * https://source.android.com/docs/core/connect/bluetooth/ble
+ */
+
+@TargetApi(33)
+@SuppressLint("MissingPermission")
+class BluetoothLeConnectionService(private val ctx: Context) {
+    enum class State {
+        Connected, Disconnected
+    }
+    private var connectedGatt: BluetoothGatt? = null
+    private val _connectionState = MutableStateFlow(State.Disconnected)
+    val connectionState: StateFlow<State> = _connectionState
+
+    private val discoveryResult = MutableStateFlow<List<BluetoothGattService>?>(null)
+
+    private val bluetoothManager = ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+
+    private val clientCharacteristicConfigurationDescriptor = checkNotNull(UUID.fromString("2902-0000-1000-8000-00805f9b34fb"))
+
+    suspend fun connect(deviceAddress: String) = withContext(Dispatchers.IO) {
+        log("Connecting...")
+        if (connectAsync(deviceAddress)) {
+            //Wait until connected
+            connectionState
+                .filter { it == State.Connected }
+                .first()
+            log("Connected")
+        }
+    }
+    fun connectAsync(deviceAddress: String): Boolean {
+        if (BluetoothAdapter.checkBluetoothAddress(deviceAddress).not()) {
+            log("provided deviceAddress: $deviceAddress is not valid!")
+            return false
+        }
+        val adapter = bluetoothManager.adapter
+        val device = adapter.getRemoteDevice(deviceAddress)
+        if (ManifestPermission.BLUETOOTH_CONNECT.checkPermission(ctx).not()) {
+            log("BLUETOOTH_CONNECT permission not granted")
+            return false
+        }
+        device.connectGatt(ctx, false, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE)
+        return true
+    }
+
+    fun disconnect() {
+        connectedGatt?.disconnect()
+    }
+
+    suspend fun discover() {
+        log("Discovering...")
+        if (discoverAsync()) {
+            discoveryResult.filter { it != null }.first()
+            log("Discovered")
+        }
+    }
+
+    fun discoverAsync(): Boolean {
+        connectedGatt?.let { gatt ->
+            return gatt.discoverServices()
+        } ?: log("Not connected!")
+        return false
+    }
+
+    @OptIn(ExperimentalStdlibApi::class)
+    fun writeCharacteristic(serviceUUID: UUID, characteristicUUID: UUID, value: ByteArray) {
+        connectedGatt?.let { gatt ->
+            gatt.getService(serviceUUID)?.let { service ->
+                service.getCharacteristic(characteristicUUID)?.let { characteristic ->
+                    //log("is readable : ${characteristic.isReadable()}")
+                    //log("is writeable: ${characteristic.isWritable()}")
+                    //log("Write values: ${value.toHexString()}")
+                    if (characteristic.isWritable()) {
+                        val result = gatt.writeCharacteristic(
+                            characteristic, value,
+                            BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                        )
+                        //log("Result: $result")
+                    } else {
+                        log("Characteristic not writeable!")
+                    }
+                }
+            }
+        }
+    }
+
+    data class CharacteristicSubscription(
+        val uuid: UUID,
+        val callback: (ByteArray) -> Unit
+    )
+
+    private val subscriptionMap = mutableMapOf<UUID, CharacteristicSubscription>()
+    fun subscribeForNotification(
+        serviceUUID: UUID, characteristicUUID: UUID, callback: (ByteArray) -> Unit
+    ) {
+        val subscriptionData = CharacteristicSubscription(characteristicUUID, callback)
+        subscriptionMap[subscriptionData.uuid] = subscriptionData
+        unSubscribeForNotificationInternal(true, serviceUUID, characteristicUUID)
+    }
+    fun unSubscribeForNotification(serviceUUID: UUID, characteristicUUID: UUID) {
+        unSubscribeForNotificationInternal(false, serviceUUID, characteristicUUID)
+        subscriptionMap.remove(characteristicUUID)
+    }
+    private fun unSubscribeForNotificationInternal(subscribe: Boolean, serviceUUID: UUID, characteristicUUID: UUID) {
+        connectedGatt?.let { gatt ->
+            gatt.getService(serviceUUID)?.let { service ->
+                service.getCharacteristic(characteristicUUID)?.let { characteristic ->
+                    log("is readable   : ${characteristic.isReadable()}")
+                    log("is writeable  : ${characteristic.isWritable()}")
+                    log("is indicatable: ${characteristic.isIndicatable()}")
+                    log("is notifiable : ${characteristic.isNotifiable()}")
+                    val success = gatt.setCharacteristicNotification(characteristic, true)
+                    log("result: $success")
+                    characteristic.getDescriptor(clientCharacteristicConfigurationDescriptor)?.let { cccDescriptor ->
+                        val result = gatt.writeDescriptor(
+                            cccDescriptor,
+                            if (subscribe) BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                            else BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+                        )
+                        log("write ccc descriptor: $result")
+                    }
+                }
+            } ?: log("Service not found!")
+        } ?: log("not connected!")
+    }
+
+    @OptIn(ExperimentalStdlibApi::class)
+    private val bluetoothGattCallback = object : BluetoothGattCallback() {
+        override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+            when (newState) {
+                BluetoothProfile.STATE_CONNECTED -> {
+                    log("Connected")
+                    connectedGatt = gatt
+                    _connectionState.value = State.Connected
+                }
+                BluetoothProfile.STATE_DISCONNECTED -> {
+                    log("Disconnected")
+                    _connectionState.value = State.Disconnected
+                    connectedGatt = null
+                }
+            }
+        }
+
+        override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            if (status ==  BluetoothGatt.GATT_SUCCESS) {
+                val services = gatt.services
+                services.forEach { gattService ->
+                    val uuid = gattService.uuid.toString()
+                    val gattCharacteristics = gattService.characteristics
+                    val serviceName = AllGattServices.lookup(uuid)
+                    log("Service: $uuid type: ${gattService.type} name: $serviceName")
+                    gattCharacteristics.forEach { gattCharacteristic ->
+                        val characteristicUuid = gattCharacteristic.uuid.toString()
+                        val characteristicName = AllGattCharacteristics.lookup(characteristicUuid)
+                        log("   Characteristics: $characteristicUuid $characteristicName")
+                    }
+                }
+                discoveryResult.value = services
+            } else {
+                log("Error during service discovery status: $status")
+            }
+        }
+
+        override fun onCharacteristicWrite(
+            gatt: BluetoothGatt?,
+            characteristic: BluetoothGattCharacteristic?,
+            status: Int
+        ) {
+            //log("onWrite: $status")
+        }
+
+        override fun onDescriptorWrite(
+            gatt: BluetoothGatt?,
+            descriptor: BluetoothGattDescriptor?,
+            status: Int
+        ) {
+            log("descriptor write status: $status")
+        }
+
+        override fun onDescriptorRead(
+            gatt: BluetoothGatt,
+            descriptor: BluetoothGattDescriptor,
+            status: Int,
+            value: ByteArray
+        ) {
+            log("descriptor read")
+        }
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray
+        ) {
+            //log("Characteristic changed:\n${value.toHexString()}")
+            subscriptionMap[characteristic.uuid]?.callback?.invoke(value)
+        }
+        override fun onCharacteristicRead(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray,
+            status: Int
+        ) {
+            with(characteristic) {
+                when (status) {
+                    BluetoothGatt.GATT_SUCCESS -> {
+                        log("Read characteristic $uuid:\n${value.toHexString()}")
+                    }
+                    BluetoothGatt.GATT_READ_NOT_PERMITTED -> {
+                        log("Read not permitted for $uuid!")
+                    }
+                    else -> {
+                        log("Characteristic read failed for $uuid, error: $status")
+                    }
+                }
+            }
+        }
+    }
+
+}
+
+
+fun BluetoothGattCharacteristic.isReadable(): Boolean =
+    containsProperty(BluetoothGattCharacteristic.PROPERTY_READ)
+
+fun BluetoothGattCharacteristic.isWritable(): Boolean =
+    containsProperty(BluetoothGattCharacteristic.PROPERTY_WRITE)
+
+fun BluetoothGattCharacteristic.isWritableWithoutResponse(): Boolean =
+    containsProperty(BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)
+
+fun BluetoothGattCharacteristic.isIndicatable(): Boolean =
+    containsProperty(BluetoothGattCharacteristic.PROPERTY_INDICATE)
+
+fun BluetoothGattCharacteristic.isNotifiable(): Boolean =
+    containsProperty(BluetoothGattCharacteristic.PROPERTY_NOTIFY)
+
+fun BluetoothGattCharacteristic.containsProperty(property: Int): Boolean {
+    return properties and property != 0
+}
