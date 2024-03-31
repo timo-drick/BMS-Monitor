@@ -23,7 +23,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
-import de.drick.bmsmonitor.bms_adapter.YY_BMS_SERVICE
 import de.drick.compose.permission.ManifestPermission
 import de.drick.compose.permission.checkPermission
 import de.drick.compose.permission.rememberBluetoothState
@@ -106,8 +105,7 @@ fun BluetoothDeviceInfoView(
     )
 }
 
-val BATTERY_SERVICE_UUID = checkNotNull(UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb"))
-//val BATTERY_SERVICE_UUID = checkNotNull(UUID.fromString("0000ffe0-0000-1000-8000-00805f9b34fb"))
+val BMS_SERVICE_UUID = checkNotNull(UUID.fromString("0000ffe0-0000-1000-8000-00805f9b34fb"))
 
 
 @Composable
@@ -145,14 +143,11 @@ fun bluetoothLeScannerEffect(): List<DeviceInfo> {
         if (ManifestPermission.BLUETOOTH_SCAN.checkPermission(ctx)) {
             log("Start scanning")
             val filter1 = ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(BATTERY_SERVICE_UUID))
-                .build()
-            val filter2 = ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(YY_BMS_SERVICE))
+                .setServiceUuid(ParcelUuid(BMS_SERVICE_UUID))
                 .build()
             val settings = ScanSettings.Builder()
                 .build()
-            bluetoothLeScanner.startScan(listOf(filter2), settings, scanCallback)
+            bluetoothLeScanner.startScan(listOf(filter1), settings, scanCallback)
         }
         onStopOrDispose {
             if (ManifestPermission.BLUETOOTH_SCAN.checkPermission(ctx)) {

@@ -36,7 +36,7 @@ import java.util.UUID
 @SuppressLint("MissingPermission")
 class BluetoothLeConnectionService(private val ctx: Context) {
     enum class State {
-        Connected, Disconnected
+        Connected, Connecting, Disconnecting, Disconnected
     }
     private var connectedGatt: BluetoothGatt? = null
     private val _connectionState = MutableStateFlow(State.Disconnected)
@@ -95,21 +95,22 @@ class BluetoothLeConnectionService(private val ctx: Context) {
     @OptIn(ExperimentalStdlibApi::class)
     fun writeCharacteristic(serviceUUID: UUID, characteristicUUID: UUID, value: ByteArray) {
         connectedGatt?.let { gatt ->
-            gatt.getService(serviceUUID)?.let { service ->
-                service.getCharacteristic(characteristicUUID)?.let { characteristic ->
-                    //log("is readable : ${characteristic.isReadable()}")
-                    //log("is writeable: ${characteristic.isWritable()}")
-                    //log("Write values: ${value.toHexString()}")
-                    if (characteristic.isWritable()) {
-                        val result = gatt.writeCharacteristic(
-                            characteristic, value,
-                            BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-                        )
-                        //log("Result: $result")
-                    } else {
-                        log("Characteristic not writeable!")
-                    }
+            val characteristic = getCharacteristic(serviceUUID, characteristicUUID)
+            if (characteristic != null) {
+                //log("is readable : ${characteristic.isReadable()}")
+                //log("is writeable: ${characteristic.isWritable()}")
+                //log("Write values: ${value.toHexString()}")
+                if (characteristic.isWritable()) {
+                    val result = gatt.writeCharacteristic(
+                        characteristic, value,
+                        BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                    )
+                    //log("Result: $result")
+                } else {
+                    log("Characteristic not writeable!")
                 }
+            } else {
+                log("Unable to find characteristic!")
             }
         }
     }
@@ -131,17 +132,23 @@ class BluetoothLeConnectionService(private val ctx: Context) {
         unSubscribeForNotificationInternal(false, serviceUUID, characteristicUUID)
         subscriptionMap.remove(characteristicUUID)
     }
-    private fun unSubscribeForNotificationInternal(subscribe: Boolean, serviceUUID: UUID, characteristicUUID: UUID) {
+
+    private fun unSubscribeForNotificationInternal(
+        subscribe: Boolean,
+        serviceUUID: UUID,
+        characteristicUUID: UUID
+    ) {
         connectedGatt?.let { gatt ->
-            gatt.getService(serviceUUID)?.let { service ->
-                service.getCharacteristic(characteristicUUID)?.let { characteristic ->
-                    log("is readable   : ${characteristic.isReadable()}")
-                    log("is writeable  : ${characteristic.isWritable()}")
-                    log("is indicatable: ${characteristic.isIndicatable()}")
-                    log("is notifiable : ${characteristic.isNotifiable()}")
-                    val success = gatt.setCharacteristicNotification(characteristic, true)
-                    log("result: $success")
-                    characteristic.getDescriptor(clientCharacteristicConfigurationDescriptor)?.let { cccDescriptor ->
+            val characteristic = getCharacteristic(serviceUUID, characteristicUUID)
+            if (characteristic != null) {
+                log("is readable   : ${characteristic.isReadable()}")
+                log("is writeable  : ${characteristic.isWritable()}")
+                log("is indicatable: ${characteristic.isIndicatable()}")
+                log("is notifiable : ${characteristic.isNotifiable()}")
+                val success = gatt.setCharacteristicNotification(characteristic, true)
+                log("result: $success")
+                characteristic.getDescriptor(clientCharacteristicConfigurationDescriptor)
+                    ?.let { cccDescriptor ->
                         val result = gatt.writeDescriptor(
                             cccDescriptor,
                             if (subscribe) BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
@@ -149,9 +156,10 @@ class BluetoothLeConnectionService(private val ctx: Context) {
                         )
                         log("write ccc descriptor: $result")
                     }
-                }
-            } ?: log("Service not found!")
-        } ?: log("not connected!")
+            } else {
+                log("Unable to find service or characteristc!")
+            }
+        }
     }
 
     @OptIn(ExperimentalStdlibApi::class)
@@ -167,6 +175,14 @@ class BluetoothLeConnectionService(private val ctx: Context) {
                     log("Disconnected")
                     _connectionState.value = State.Disconnected
                     connectedGatt = null
+                }
+                BluetoothProfile.STATE_CONNECTING -> {
+                    log("Connecting...")
+                    _connectionState.value = State.Connecting
+                }
+                BluetoothProfile.STATE_DISCONNECTING -> {
+                    log("Disconnecting...")
+                    _connectionState.value = State.Disconnecting
                 }
             }
         }
@@ -245,6 +261,34 @@ class BluetoothLeConnectionService(private val ctx: Context) {
         }
     }
 
+    private fun getCharacteristic(
+        serviceUUID: UUID,
+        characteristicUUID: UUID
+    ): BluetoothGattCharacteristic? {
+        connectedGatt?.let { gatt ->
+            discoveryResult.value?.let { discoveryResult ->
+                // Search characteristic in discovered result
+                val service = discoveryResult.find { it.uuid == serviceUUID }
+                if (service != null) {
+                    val characteristic = service.characteristics.find { it.uuid == characteristicUUID }
+                    if (characteristic != null) {
+                        return characteristic
+                    }
+                }
+            }
+            // Not found in discoverd services. Check if we can connect directly
+            gatt.getService(serviceUUID)?.let { service ->
+                service.getCharacteristic(characteristicUUID)?.let { characteristic ->
+                    log("is readable   : ${characteristic.isReadable()}")
+                    log("is writeable  : ${characteristic.isWritable()}")
+                    log("is indicatable: ${characteristic.isIndicatable()}")
+                    log("is notifiable : ${characteristic.isNotifiable()}")
+                    return characteristic
+                } ?: log("Characteristics not found!")
+            } ?: log("Service not found!")
+        } ?: log("not connected!")
+        return null
+    }
 }
 
 

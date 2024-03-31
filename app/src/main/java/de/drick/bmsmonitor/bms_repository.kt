@@ -15,7 +15,7 @@ interface KnownBmsDao {
 }
 
 @Entity(indices = [Index(value = ["id"])])
-data class BmsInfo(
+data class DbBmsInfo(
     val id: String,
     val address: String,
     

@@ -1,5 +1,10 @@
 package de.drick.bmsmonitor.bms_adapter
 
+import de.drick.bmsmonitor.bms_adapter.jk_bms.BalanceState
+import de.drick.bmsmonitor.bms_adapter.jk_bms.FrameBuffer
+import de.drick.bmsmonitor.bms_adapter.jk_bms.MAX_RESPONSE_SIZE
+import de.drick.bmsmonitor.bms_adapter.jk_bms.MIN_RESPONSE_SIZE
+
 @OptIn(ExperimentalStdlibApi::class)
 private val data = """ 
 55aaeb9002eb9f0d460d610d8c0d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f000000740d590000018200850079007c0000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -29,29 +34,8 @@ private val testData = listOf(
 )
 
 
-class FrameBuffer() {
-    private val frameBuffer = mutableListOf<ByteArray>()
-    val size get() = frameBuffer.sumOf { it.size }
-    fun insert(data: ByteArray) {
-        frameBuffer.add(data)
-    }
-    fun clear() {
-        frameBuffer.clear()
-    }
-    fun build(): ByteArray {
-        val buffer = frameBuffer
-        var data = byteArrayOf()
-        buffer.forEach {
-            data += it
-        }
-        return data
-    }
-}
-val frameBuffer = FrameBuffer()
-const val MIN_RESPONSE_SIZE = 300
-const val MAX_RESPONSE_SIZE = 320
-
-var is32s: Boolean = false
+private var is32s: Boolean = false
+private val frameBuffer = FrameBuffer()
 
 @OptIn(ExperimentalStdlibApi::class)
 fun main() {
@@ -66,7 +50,7 @@ fun main() {
     val hexFormat = HexFormat {
         number.prefix = "0x"
     }
-    val data = jk_b2a24s20p_jk02
+    /*val data = jk_b2a24s20p_jk02
         .split("\n")
         .map {line ->
             line
@@ -77,12 +61,15 @@ fun main() {
                     else it.hexToByte()
                 }
                 .toByteArray()
-        }
+        }*/
+    val data = testAnomalyBalancing
+        .split("\n")
+        .map { it.hexToByteArray() }
     //println(data[0].toHexString(hexFormat))
-    is32s = false
-    /*data.forEach {
+    is32s = true
+    data.forEach {
         addData(it)
-    }*/
+    }
 }
 
 fun addData(newData: ByteArray) {
@@ -114,33 +101,57 @@ private fun decodeJk02(data: ByteArray) {
     var offset = if (is32s) 16 else 0
     val cells = countBits(data[54 + offset], data[55 + offset], data[56 + offset])
     println("Cells: $cells")
-    val voltages = FloatArray(cells, init = { i -> getShort(data, i * 2 + 6).toFloat() * 0.001f })
+    val voltages = FloatArray(cells, init = { i -> getUShort(data, i * 2 + 6).toFloat() * 0.001f })
     println("Voltages: ${voltages.joinToString { "%.3f".format(it) }}")
-    val avarage = getShort(data, 58 + offset).toFloat() * 0.001f
-    val delta = getShort(data, 60 + offset).toFloat() * 0.001f
+    val avarage = getUShort(data, 58 + offset).toFloat() * 0.001f
+    val delta = getUShort(data, 60 + offset).toFloat() * 0.001f
     val maxCell = data[62 + offset]
     val minCell = data[63 + offset]
 
     offset *= 2
-    val voltage = getInt(data, 118 + offset).toFloat() * 0.001f
+    val voltage = getUInt(data, 118 + offset).toFloat() * 0.001f
     println("Avarage: $avarage delta: $delta max cell: ${maxCell + 1} min cell: ${minCell + 1} v: $voltage")
-    val current = getInt(data, 126 + offset).toFloat() * 0.001f
-    println("Current: $current")
+    val current = getUInt(data, 126 + offset).toFloat() * 0.001f
+    //println("Current: $current")
     //Temp
-    val temp0 = getShort(data, 130 + offset).toFloat() * 0.1f
-    val temp1 = getShort(data, 132 + offset).toFloat() * 0.1f
-    val mosTemp = getShort(data, 134 + offset).toFloat() * 0.1f
-    println("Temp1: $temp0 T2: $temp1 mos: $mosTemp")
+    val temp0 = getUShort(data, 130 + offset).toFloat() * 0.1f
+    val temp1 = getUShort(data, 132 + offset).toFloat() * 0.1f
+    val mosTemp = getUShort(data, 134 + offset).toFloat() * 0.1f
+    //println("Temp1: $temp0 T2: $temp1 mos: $mosTemp")
     if (is32s) {
         val mask = data[134 + offset].toUByte().toInt() shl 8 or data[134 + 1 + offset].toUByte().toInt()
-        println("Error bitmask: $mask")
+        //println("Error bitmask: $mask")
         Errors.entries.forEachIndexed { index, error ->
             if (mask and (1 shl index) > 0) {
                 println("Error: ${error.description}")
             }
         }
+    } else {
+        //TODO
     }
-    val soc = data[141].toInt()
+    val balancingCurrent = getShort(data, 138 + offset).toFloat() * 0.001f
+    val balancingState = when(data[140 + offset]) {
+        0x01.toByte() -> BalanceState.Charging
+        0x02.toByte() -> BalanceState.Discharging
+        else -> BalanceState.Off
+    }
+    val cellBalanceChargeIndex = data[78].toInt()
+    val cellBalanceDischargeIndex = data[79].toInt()
+    println("Balancer current: $balancingCurrent state: $balancingState cell index charge: $cellBalanceDischargeIndex discharge: $cellBalanceChargeIndex")
+    val soc = data[141 + offset].toInt()
+    val capacityRemaining = getUInt(data, 142 + offset).toFloat() * 0.001f
+    val capacityTotal = getUInt(data, 146 + offset).toFloat() * 0.001f
+    val cycleCount = getUInt(data, 150 + offset).toInt()
+    val cycleCapacity = getUInt(data, 154 + offset).toFloat() * 0.001f
+    val totalRuntime = getUInt(data, 162 + offset)
+    val chargingEnabled = data[166 + offset] > 0
+    val dischargingEnabled = data[167 + offset] > 0
+    val heatingEnabled = data[192 + offset] > 0
+    val heatingCurrent = getUShort(data, 204 + offset).toFloat() * 0.001f
+
+    println("SOC: $soc remaining: $capacityRemaining Ah ($capacityTotal Ah) cycle: $cycleCount ($cycleCapacity Ah) runtime:$totalRuntime")
+    println("Charging: $chargingEnabled discharging: $dischargingEnabled heating: $heatingEnabled ($heatingCurrent Ah)")
+
 }
 
 enum class Errors(val description: String) {
@@ -171,15 +182,9 @@ private fun countBits(vararg bytes: Byte): Int {
     return bits
 }
 
-private fun getShort(data: ByteArray, offset: Int): UShort =
+private fun getShort(data: ByteArray, offset: Int): Short =
+    (data[offset].toInt() + (data[offset + 1].toInt() shl 8)).toShort()
+private fun getUShort(data: ByteArray, offset: Int): UShort =
     (data[offset].toUByte().toInt() + (data[offset + 1].toUByte().toInt() shl 8)).toUShort()
-private fun getInt(data: ByteArray, offset: Int): UInt =
-    getShort(data, offset + 2).toUInt() shl 16 or getShort(data, offset).toUInt()
-
-fun crc(data: ByteArray, length: Int): Byte {
-    var crc: Byte = 0
-    for (i in 0 until length)  {
-        crc = (crc + data[i]).toByte()
-    }
-    return crc
-}
+private fun getUInt(data: ByteArray, offset: Int): UInt =
+    getUShort(data, offset + 2).toUInt() shl 16 or getUShort(data, offset).toUInt()

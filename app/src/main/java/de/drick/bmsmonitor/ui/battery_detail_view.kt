@@ -23,23 +23,22 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import de.drick.bmsmonitor.bms_adapter.BatteryInfo
+import de.drick.bmsmonitor.bluetooth.BluetoothLeConnectionService
+import de.drick.bmsmonitor.bms_adapter.GeneralCellInfo
 import de.drick.bmsmonitor.bms_adapter.BmsAdapter
+import de.drick.bmsmonitor.bms_adapter.GeneralDeviceInfo
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 
 @SuppressLint("MissingPermission", "UnrememberedMutableState")
 @Composable
@@ -48,44 +47,46 @@ fun BatteryDetailScreen(
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-
-    var batteryInfo by remember {
-        mutableStateOf<BatteryInfo?>(null)
+    val bmsAdapter = remember {
+        BmsAdapter(ctx, deviceAddress)
     }
 
-    LifecycleResumeEffect(deviceAddress) {
-        val bmsAdapter = BmsAdapter(ctx)
-        scope.launch(Dispatchers.IO) {
-            bmsAdapter.connect(deviceAddress)
-            var counter = 0
-            delay(200)
-            bmsAdapter.updateInfo()
-            delay(2000)
-            bmsAdapter.updateCellData()
 
-            /*while (isActive) {
-                counter++
-                delay(10000)
-                bmsAdapter.updateCellData()
-                delay(250)
-            }*/
-        }
-        scope.launch {
-            bmsAdapter.batteryInfoState.collect {
-                batteryInfo = it
-            }
+    LifecycleResumeEffect(deviceAddress) {
+        scope.launch(Dispatchers.IO) {
+            bmsAdapter.connect()
+            bmsAdapter.start()
         }
         onPauseOrDispose {
+            //bmsAdapter.stop()
             bmsAdapter.disconnect()
         }
     }
 
-    batteryInfo.let { batt ->
-        if (batt != null) {
-            BatteryView(
-                batteryInfo = batt
-            )
-        } else {
+    val deviceInfo by bmsAdapter.deviceInfoState.collectAsState()
+    val cellInfo by bmsAdapter.cellInfoState.collectAsState()
+    val connectionState by bmsAdapter.connectionState.collectAsState()
+    BatteryViewNullable(
+        connectionState = connectionState,
+        deviceInfo = deviceInfo,
+        cellInfo = cellInfo
+    )
+}
+
+@Composable
+fun BatteryViewNullable(
+    connectionState: BluetoothLeConnectionService.State,
+    deviceInfo: GeneralDeviceInfo?,
+    cellInfo:GeneralCellInfo?
+) {
+    if (deviceInfo != null && cellInfo != null) {
+        BatteryView(
+            deviceInfo = deviceInfo,
+            cellInfo = cellInfo
+        )
+    } else {
+        Column {
+            Text("Connection state: ${connectionState.name}")
             Text("No values received yet.")
         }
     }
@@ -95,7 +96,7 @@ fun BatteryDetailScreen(
 @Preview(showBackground = true)
 @Composable
 fun BatteryInfoPreview() {
-    val mock = BatteryInfo(
+    val mock = GeneralCellInfo(
         stateOfChard = 69,
         maxCapacity = 28f,
         current = 2.2f,
@@ -107,6 +108,9 @@ fun BatteryInfoPreview() {
             4.03f,
             3.69f
         ),
+        cellMinIndex = 5,
+        cellMaxIndex = 3,
+        cellDelta = 0.46f,
         cellBalance = booleanArrayOf(
             false,
             true,
@@ -114,11 +118,16 @@ fun BatteryInfoPreview() {
             false,
             false,
             true
-        )
+        ),
+        balanceState = "Balancing",
+        errorList = listOf("Under voltage protection"),
+        chargingEnabled = true,
+        dischargingEnabled = false
     )
     BatteryView(
         modifier = Modifier.fillMaxSize(),
-        batteryInfo = mock
+        deviceInfo = GeneralDeviceInfo("Test name", "Long test name"),
+        cellInfo = mock
     )
 }
 
@@ -126,16 +135,27 @@ fun BatteryInfoPreview() {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BatteryView(
-    batteryInfo: BatteryInfo,
+    deviceInfo: GeneralDeviceInfo,
+    cellInfo: GeneralCellInfo,
     modifier: Modifier = Modifier
 ) {
-    val voltageText = remember(batteryInfo) {
-        val voltage = batteryInfo.cellVoltages.sum()
+    val voltageText = remember(cellInfo) {
+        val voltage = cellInfo.cellVoltages.sum()
         "%.2f".format(voltage)
     }
     Column(
         modifier = modifier.padding(8.dp)
     ) {
+        Text(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            text = deviceInfo.name,
+            style = MaterialTheme.typography.headlineLarge
+        )
+        Text(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            text = deviceInfo.longName,
+            style = MaterialTheme.typography.bodyMedium
+        )
         Row(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -146,35 +166,48 @@ fun BatteryView(
             )
             Spacer(Modifier.weight(1f))
             Text(
-                text = "%.1fA".format(batteryInfo.current),
+                text = "%.2fA".format(cellInfo.current),
                 style = MaterialTheme.typography.displayLarge
             )
             Spacer(Modifier.weight(1f))
         }
         Text(
             modifier = Modifier.align(Alignment.CenterHorizontally),
-            text = "SOC: ${batteryInfo.stateOfChard}%",
+            text = "SOC: ${cellInfo.stateOfChard}%",
             style = MaterialTheme.typography.displaySmall
         )
+        Row(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val chargingText = if (cellInfo.chargingEnabled) "On" else "Off"
+            Text(
+                text = "Charging: $chargingText",
+                style = MaterialTheme.typography.bodyLarge
+            )
+            val dischargingText = if (cellInfo.dischargingEnabled) "On" else "Off"
+            Text(
+                text = "Discharging: $dischargingText",
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
+        if (cellInfo.errorList.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            val errorMessage = remember(cellInfo) {
+                cellInfo.errorList.joinToString()
+            }
+            Text(
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                text = errorMessage,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
         Spacer(Modifier.height(12.dp))
         Text(
             modifier = Modifier.align(Alignment.CenterHorizontally),
             text = "Cell voltages",
             style = MaterialTheme.typography.headlineSmall
         )
-        val (hvIndex, hvValue) = remember(batteryInfo) {
-            if (batteryInfo.cellVoltages.isNotEmpty()) {
-                batteryInfo.cellVoltages.withIndex().maxBy { (_, v) -> v }
-            } else
-                IndexedValue(0, 0f)
-        }
-        val (lvIndex, lvValue) = remember(batteryInfo) {
-            if (batteryInfo.cellVoltages.isNotEmpty()) {
-                batteryInfo.cellVoltages.withIndex().minBy { (_, v) -> v }
-            } else {
-                IndexedValue(0, 0f)
-            }
-        }
         Row(
             modifier = Modifier.align(Alignment.CenterHorizontally),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -185,7 +218,9 @@ fun BatteryView(
                     imageVector = Icons.Default.ArrowDownward,
                     contentDescription = "min"
                 )
-                Text("($lvIndex) %.3f".format(lvValue))
+                val cellMinIndex = cellInfo.cellMinIndex
+                val cellMinVoltage = cellInfo.cellVoltages[cellMinIndex]
+                Text("(%d) %.3f".format(cellMinIndex + 1, cellMinVoltage))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -193,17 +228,29 @@ fun BatteryView(
                     imageVector = Icons.Default.ArrowUpward,
                     contentDescription = "max"
                 )
-                Text("($hvIndex) %.3f".format(hvValue))
+                val cellMaxIndex = cellInfo.cellMaxIndex
+                val cellMaxVoltage = cellInfo.cellVoltages[cellMaxIndex]
+                Text("(%d) %.3f".format(cellMaxIndex + 1, cellMaxVoltage))
             }
-            Text("Δ %.0f mV".format(abs(lvValue-hvValue) * 1000f))
+            Text("Δ %.0f mV".format(cellInfo.cellDelta * 1000f))
         }
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Balancer: ${cellInfo.balanceState}"
+            )
+        }
+
         Spacer(Modifier.height(12.dp))
         FlowRow(
             modifier = Modifier.align(Alignment.CenterHorizontally),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            batteryInfo.cellVoltages.forEachIndexed { index, voltage ->
+            cellInfo.cellVoltages.forEachIndexed { index, voltage ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         modifier = Modifier
@@ -216,11 +263,11 @@ fun BatteryView(
                     )
                     Spacer(Modifier.width(8.dp))
                     val color = when (index) {
-                        lvIndex -> MaterialTheme.colorScheme.inversePrimary
-                        hvIndex -> MaterialTheme.colorScheme.primary
+                        cellInfo.cellMinIndex -> MaterialTheme.colorScheme.inversePrimary
+                        cellInfo.cellMaxIndex -> MaterialTheme.colorScheme.primary
                         else -> LocalContentColor.current
                     }
-                    val textModifier = if (batteryInfo.cellBalance[index]) {
+                    val textModifier = if (cellInfo.cellBalance[index]) {
                         Modifier
                             .background(MaterialTheme.colorScheme.secondary)
                             .padding(4.dp)
@@ -241,7 +288,7 @@ fun BatteryView(
 @Preview(showBackground = true)
 @Composable
 fun PreviewBatteryWidget() {
-    val mock = BatteryInfo(
+    val mock = GeneralCellInfo(
         stateOfChard = 69,
         maxCapacity = 28f,
         current = 2.2f,
@@ -253,6 +300,9 @@ fun PreviewBatteryWidget() {
             4.03f,
             3.69f
         ),
+        cellMinIndex = 5,
+        cellMaxIndex = 3,
+        cellDelta = 0.46f,
         cellBalance = booleanArrayOf(
             false,
             true,
@@ -260,15 +310,18 @@ fun PreviewBatteryWidget() {
             false,
             false,
             true
-        )
+        ),
+        balanceState = "Discharge",
+        errorList = emptyList(),
+        chargingEnabled = true,
+        dischargingEnabled = true
     )
     BatteryWidget(batteryInfo = mock)
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BatteryWidget(
-    batteryInfo: BatteryInfo,
+    batteryInfo: GeneralCellInfo,
     modifier: Modifier = Modifier
 ) {
     val voltageText = remember(batteryInfo) {
@@ -299,19 +352,6 @@ fun BatteryWidget(
             style = MaterialTheme.typography.displaySmall
         )
         Spacer(Modifier.height(12.dp))
-        val (hvIndex, hvValue) = remember(batteryInfo) {
-            if (batteryInfo.cellVoltages.isNotEmpty()) {
-                batteryInfo.cellVoltages.withIndex().maxBy { (_, v) -> v }
-            } else
-                IndexedValue(0, 0f)
-        }
-        val (lvIndex, lvValue) = remember(batteryInfo) {
-            if (batteryInfo.cellVoltages.isNotEmpty()) {
-                batteryInfo.cellVoltages.withIndex().minBy { (_, v) -> v }
-            } else {
-                IndexedValue(0, 0f)
-            }
-        }
         Row(
             modifier = Modifier.align(Alignment.CenterHorizontally),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -322,7 +362,9 @@ fun BatteryWidget(
                     imageVector = Icons.Default.ArrowDownward,
                     contentDescription = "min"
                 )
-                Text("($lvIndex) %.3f".format(lvValue))
+                val cellMinIndex = batteryInfo.cellMinIndex + 1
+                val cellMinVoltage = batteryInfo.cellVoltages[cellMinIndex]
+                Text("($cellMinIndex) %.3f".format(cellMinVoltage))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -330,9 +372,11 @@ fun BatteryWidget(
                     imageVector = Icons.Default.ArrowUpward,
                     contentDescription = "max"
                 )
-                Text("($hvIndex) %.3f".format(hvValue))
+                val cellMaxIndex = batteryInfo.cellMaxIndex + 1
+                val cellMaxVoltage = batteryInfo.cellVoltages[cellMaxIndex]
+                Text("($cellMaxIndex) %.3f".format(cellMaxVoltage))
             }
-            Text("Δ %.0f mV".format(abs(lvValue-hvValue) * 1000f))
+            Text("Δ %.0f mV".format( batteryInfo.cellDelta * 1000f))
         }
         Spacer(Modifier.height(12.dp))
     }
