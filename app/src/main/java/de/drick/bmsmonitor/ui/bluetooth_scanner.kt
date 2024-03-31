@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
+import de.drick.bmsmonitor.bms_adapter.DeviceMacPrefix
 import de.drick.compose.permission.ManifestPermission
 import de.drick.compose.permission.checkPermission
 import de.drick.compose.permission.rememberBluetoothState
@@ -121,8 +122,10 @@ fun bluetoothLeScannerEffect(): List<DeviceInfo> {
         val bluetoothLeScanner = bluetoothManager.adapter.bluetoothLeScanner
         val scanCallback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                log("type: $callbackType, result: $result")
                 val address = result.device.address
+                val bmsType = DeviceMacPrefix.entries.find { address.startsWith(it.prefix) }
+                log("type: $callbackType, bmsType: $bmsType result: $result")
+                if (bmsType == null) return
                 val name = if (ManifestPermission.BLUETOOTH_CONNECT.checkPermission(ctx))
                     result.device.name ?: "-"
                 else
@@ -147,7 +150,8 @@ fun bluetoothLeScannerEffect(): List<DeviceInfo> {
                 .build()
             val settings = ScanSettings.Builder()
                 .build()
-            bluetoothLeScanner.startScan(listOf(filter1), settings, scanCallback)
+            //bluetoothLeScanner.startScan(listOf(filter1), settings, scanCallback)
+            bluetoothLeScanner.startScan(scanCallback)
         }
         onStopOrDispose {
             if (ManifestPermission.BLUETOOTH_SCAN.checkPermission(ctx)) {

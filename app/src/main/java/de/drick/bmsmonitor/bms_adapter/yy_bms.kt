@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.UUID
 import kotlin.math.abs
 
@@ -25,7 +27,7 @@ private val writeCommand2 = "0103003f00047405".hexToByteArray()
 private val prefix2 = "010308"
 
 
-fun byteArray2BitArray(vararg bytes: Byte): BooleanArray {
+fun byteArray2BooleanArray(vararg bytes: Byte): BooleanArray {
     val bits = BooleanArray(bytes.size * 8)
     for (i in 0 until bytes.size * 8) {
         if (bytes[i / 8].toInt() and (1 shl i % 8) > 0) bits[i] = true
@@ -81,6 +83,7 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
     }
 
     private val notificationCallback = { data: ByteArray ->
+        val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
         val hex = data.toHexString()
         //log(hex)
         when (hex.substring(0, prefix1.length)) {
@@ -88,16 +91,16 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
             prefix2 -> {}
             prefixBmsInfoData -> {
                 //log(hex)
-                val cells = data[151].toUByte().toInt()
+                val cells = buffer[151].toUByte().toInt()
                 val modelTypeName = stringFromBytes(data, 41, 36)
                 val bluetoothName = stringFromBytes(data, 83, 12)
                 val pin = stringFromBytes(data, 95, 4)
-                val year = data[131].toInt() + 2000
-                val month = data[132].toInt()
-                val day = data[133].toInt()
-                val hour = data[134].toInt()
-                val minutes = data[135].toInt()
-                val seconds = data[136].toInt()
+                val year = buffer[131].toInt() + 2000
+                val month = buffer[132].toInt()
+                val day = buffer[133].toInt()
+                val hour = buffer[134].toInt()
+                val minutes = buffer[135].toInt()
+                val seconds = buffer[136].toInt()
                 //log("$modelTypeName - $year.$month.$day $hour:$minutes:$seconds")
                 //log("$bluetoothName pin: $pin cells: $cells")
                 cellCount = cells
@@ -110,28 +113,28 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
                 //log(hex)
 
                 // Offset 3 current 2 byte
-                val currentRaw = data.getUShort(3)
+                val currentRaw = buffer.getShort(3)
 
                 // Offset 5 cell voltages 24x 2 byte shorts
                 val byteOffset = 5
                 val cellVoltage = FloatArray(cellCount) {
                     val position = it * 2 + byteOffset
-                    data.getUShort(position).toFloat() / 1000f
+                    buffer.getShort(position).toFloat() / 1000f
                 }
                 // Offset end 53
 
-                val bits = byteArray2BitArray(data[65], data[66], data[67], data[68])
+                val bits = byteArray2BooleanArray(buffer[65], buffer[66], buffer[67], buffer[68])
                 log(bits.joinToString("") { if (it) "1" else "0" })
-                val discharging = byteArray2BitArray(data[65])[0]
+                val discharging = byteArray2BooleanArray(buffer[65])[0]
                 val currentSign = 1f //if (discharging) -1f else 1f // not working
                 val current = currentSign * currentRaw.toFloat() * 0.014f // Not exactly the same like in the old app
                 //But closer to the real value
                 log ("Current: ${"%.2f".format(current)}")
 
 
-                val capacity1 = data.getUShort(79).toFloat() / 10f
-                val capacity2 = data.getUShort(81).toFloat() / 10f
-                val soc = data[83].toInt()
+                val capacity1 = buffer.getShort(79).toFloat() / 10f
+                val capacity2 = buffer.getShort(81).toFloat() / 10f
+                val soc = buffer[83].toInt()
 
                 //log("Soc: $soc% cap1: $capacity1 Ah $capacity2 Ah cellCount: $cellCount")
 
@@ -147,20 +150,21 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
                 //log("Balance: ${value[121].toUByte().toString(2)} ${value[122].toUByte().toString(2)} ${value[123].toUByte().toString(2)}")
                 // 01011001 11011111 00000001 0
 
-                val balanceBits = byteArray2BitArray(data[121], data[122], data[123])
+                val balanceBits = byteArray2BooleanArray(buffer[121], buffer[122], buffer[123])
                 //log(balanceBits.joinToString("") { if (it) "1" else "0" })
-                val balancing = data[121] + data[122] + data[123] > 0
+                val balancing = buffer[121] + buffer[122] + buffer[123] > 0
                 val balanceState = if (balancing) "Balancing" else "Off"
 
-                val testBits = byteArray2BitArray(data[147], data[148])
+                val testBits = byteArray2BooleanArray(buffer[147], buffer[148])
                 val text = testBits.mapIndexed { index, b -> if (b) "$index [1]" else "$index [0]" }.joinToString(" ")
                 //log("Bist: $text")
                 // bit 1 und 6 chraging disabled
                 // bit 0 und 4 discharging disabled
-                val bitsA = byteArray2BitArray(data[147])
+                val bitsA = byteArray2BooleanArray(buffer[147])
                 val dischargingEnabled = bitsA[0]  // also bit 4 flips when dischraging is disabled
                 val chargingEnabled = bitsA[1]     // also bit 6 flips when charging is disabled
 
+                // Calculate highest and lowest cell
                 val (hvIndex, hvValue) = if (cellVoltage.isNotEmpty()) {
                     cellVoltage.withIndex().maxBy { (_, v) -> v }
                 } else {
@@ -184,7 +188,10 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
                     balanceState = balanceState,
                     errorList = emptyList(), //TODO,
                     chargingEnabled = chargingEnabled,
-                    dischargingEnabled = dischargingEnabled
+                    dischargingEnabled = dischargingEnabled,
+                    temp0 = 0f,  //TODO
+                    temp1 = 0f,  //TODO
+                    tempMos = 0f //TODO
                 )
                 _cellInfoFlow.value = new
             }

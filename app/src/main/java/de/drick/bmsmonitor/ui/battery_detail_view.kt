@@ -122,7 +122,10 @@ fun BatteryInfoPreview() {
         balanceState = "Balancing",
         errorList = listOf("Under voltage protection"),
         chargingEnabled = true,
-        dischargingEnabled = false
+        dischargingEnabled = false,
+        temp0 = 19.5f,
+        temp1 = 21.1f,
+        tempMos = 35.81f
     )
     BatteryView(
         modifier = Modifier.fillMaxSize(),
@@ -203,10 +206,17 @@ fun BatteryView(
             )
         }
         Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("T1: %.1f°C T2: %.1f°C Mos: %.1f°C".format(cellInfo.temp0, cellInfo.temp1, cellInfo.tempMos))
+        }
+        Spacer(Modifier.height(12.dp))
         Text(
             modifier = Modifier.align(Alignment.CenterHorizontally),
             text = "Cell voltages",
-            style = MaterialTheme.typography.headlineSmall
+            style = MaterialTheme.typography.titleMedium
         )
         Row(
             modifier = Modifier.align(Alignment.CenterHorizontally),
@@ -314,7 +324,10 @@ fun PreviewBatteryWidget() {
         balanceState = "Discharge",
         errorList = emptyList(),
         chargingEnabled = true,
-        dischargingEnabled = true
+        dischargingEnabled = true,
+        temp0 = 19.5f,
+        temp1 = 21.1f,
+        tempMos = 35.81f
     )
     BatteryWidget(batteryInfo = mock)
 }

@@ -2,6 +2,8 @@ package de.drick.bmsmonitor.bms_adapter.jk_bms
 
 import de.drick.bmsmonitor.bms_adapter.stringFromBytes
 import de.drick.log
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /**
  * Protocol implementation used to understand the protocol data:
@@ -73,22 +75,23 @@ class JkBmsDecoder() {
     private val protocolVersion = ProtocolVersion.JK02_24S
 
     private fun decodeCellData(data: ByteArray): JKBmsEvent.CellInfo {
+        val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
         val is32s = true
         var offset = if (is32s) 16 else 0
         val cells = countBits(data[54 + offset], data[55 + offset], data[56 + offset])
-        val cellVoltages = FloatArray(cells, init = { i -> getUShort(data, i * 2 + 6).toFloat() * 0.001f })
-        val cellAverage = getUShort(data, 58 + offset).toFloat() * 0.001f
-        val cellDelta = getUShort(data, 60 + offset).toFloat() * 0.001f
-        val cellMaxIndex = data[62 + offset].toInt()
-        val cellMinIndex = data[63 + offset].toInt()
+        val cellVoltages = FloatArray(cells, init = { i -> buffer.getShort(i * 2 + 6).toFloat() * 0.001f })
+        val cellAverage = buffer.getShort(58 + offset).toFloat() * 0.001f
+        val cellDelta = buffer.getShort(60 + offset).toFloat() * 0.001f
+        val cellMaxIndex = buffer[62 + offset].toInt()
+        val cellMinIndex = buffer[63 + offset].toInt()
 
-        val cellBalanceDischargeIndex = data[62 + offset].toInt()
-        val cellBalanceChargeIndex = data[63 + offset].toInt()
+        val cellBalanceDischargeIndex = buffer[62 + offset].toInt()
+        val cellBalanceChargeIndex = buffer[63 + offset].toInt()
 
         offset *= 2
 
-        val balancingCurrent = getShort(data, 138 + offset).toFloat() * 0.001f
-        val balancingState = when(data[140 + offset]) {
+        val balancingCurrent = buffer.getShort(138 + offset).toFloat() * 0.001f
+        val balancingState = when(buffer[140 + offset]) {
             0x01.toByte() -> BalanceState.Charging
             0x02.toByte() -> BalanceState.Discharging
             else -> BalanceState.Off
@@ -101,33 +104,33 @@ class JkBmsDecoder() {
             }
         }
 
-        val voltage = getUInt(data, 118 + offset).toFloat() * 0.001f
-        val current = getUInt(data, 126 + offset).toFloat() * 0.001f
-        val temp0 = getUShort(data, 130 + offset).toFloat() * 0.1f
-        val temp1 = getUShort(data, 132 + offset).toFloat() * 0.1f
-        val tempMos = getUShort(data, 134 + offset).toFloat() * 0.1f
-        val errors = if (is32s) {
-            val mask = data[134 + offset].toUByte().toInt() shl 8 or data[134 + 1 + offset].toUByte().toInt()
-            JKBmsErrors.entries.mapIndexedNotNull { index, error ->
-                if (mask and (1 shl index) > 0) {
-                    error
-                } else {
-                    null
-                }
+        val voltage = buffer.getInt(118 + offset).toFloat() * 0.001f
+        val current = buffer.getInt(126 + offset).toFloat() * 0.001f
+        val tempMosIndex = if (is32s) 112 else 134
+        val tempMos = buffer.getShort(tempMosIndex + offset).toFloat() * 0.1f
+        val temp0 = buffer.getShort(130 + offset).toFloat() * 0.1f
+        val temp1 = buffer.getShort(132 + offset).toFloat() * 0.1f
+        val errorOffset = if (is32s) 134 else 136
+        val mask = data[errorOffset + offset].toUByte().toInt() shl 8 or data[errorOffset + 1 + offset].toUByte().toInt()
+        //val mask = buffer.getShort(134 + offset).toUShort().toInt()
+        val errors = JKBmsErrors.entries.mapIndexedNotNull { index, error ->
+            if (mask and (1 shl index) > 0) {
+                error
+            } else {
+                null
             }
-        } else {
-            emptyList()
         }
-        val soc = data[141 + offset].toInt()
-        val capacityRemaining = getUInt(data, 142 + offset).toFloat() * 0.001f
-        val capacityTotal = getUInt(data, 146 + offset).toFloat() * 0.001f
-        val cycleCount = getUInt(data, 150 + offset).toInt()
-        val cycleCapacity = getUInt(data, 154 + offset).toFloat() * 0.001f
-        val totalRuntime = getUInt(data, 162 + offset)
-        val chargingEnabled = data[166 + offset] > 0
-        val dischargingEnabled = data[167 + offset] > 0
-        val heatingEnabled = data[192 + offset] > 0
-        val heatingCurrent = getUShort(data, 204 + offset).toFloat() * 0.001f
+
+        val soc = buffer[141 + offset].toInt()
+        val capacityRemaining = buffer.getInt(142 + offset).toFloat() * 0.001f
+        val capacityTotal = buffer.getInt(146 + offset).toFloat() * 0.001f
+        val cycleCount = buffer.getInt(150 + offset)
+        val cycleCapacity = buffer.getInt(154 + offset).toFloat() * 0.001f
+        val totalRuntime = buffer.getInt(162 + offset)
+        val chargingEnabled = buffer[166 + offset] > 0
+        val dischargingEnabled = buffer[167 + offset] > 0
+        val heatingEnabled = buffer[192 + offset] > 0
+        val heatingCurrent = buffer.getShort(204 + offset).toFloat() * 0.001f
 
         return JKBmsEvent.CellInfo(
             totalVoltage = voltage,
@@ -148,7 +151,7 @@ class JkBmsDecoder() {
             tempMos = tempMos,
             cycleCount = cycleCount,
             cycleCapacity = cycleCapacity,
-            totalRuntime = totalRuntime,
+            totalRuntime = totalRuntime.toUInt(),
             chargingEnabled = chargingEnabled,
             dischargingEnabled = dischargingEnabled,
             heatingEnabled = heatingEnabled,
@@ -178,13 +181,6 @@ class JkBmsDecoder() {
         }
         return bits
     }
-
-    private fun getShort(data: ByteArray, offset: Int): Short =
-        (data[offset].toInt() + (data[offset + 1].toInt() shl 8)).toShort()
-    private fun getUShort(data: ByteArray, offset: Int): UShort =
-        (data[offset].toUByte().toInt() + (data[offset + 1].toUByte().toInt() shl 8)).toUShort()
-    private fun getUInt(data: ByteArray, offset: Int): UInt =
-        getUShort(data, offset + 2).toUInt() shl 16 or getUShort(data, offset).toUInt()
 
     private fun crc(data: ByteArray, length: Int): Byte {
         var crc: Byte = 0

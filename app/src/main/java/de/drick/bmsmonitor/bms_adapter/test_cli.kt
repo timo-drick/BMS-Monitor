@@ -4,6 +4,8 @@ import de.drick.bmsmonitor.bms_adapter.jk_bms.BalanceState
 import de.drick.bmsmonitor.bms_adapter.jk_bms.FrameBuffer
 import de.drick.bmsmonitor.bms_adapter.jk_bms.MAX_RESPONSE_SIZE
 import de.drick.bmsmonitor.bms_adapter.jk_bms.MIN_RESPONSE_SIZE
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 @OptIn(ExperimentalStdlibApi::class)
 private val data = """ 
@@ -102,7 +104,12 @@ private fun decodeJk02(data: ByteArray) {
     val cells = countBits(data[54 + offset], data[55 + offset], data[56 + offset])
     println("Cells: $cells")
     val voltages = FloatArray(cells, init = { i -> getUShort(data, i * 2 + 6).toFloat() * 0.001f })
+
+    val wrapper = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
+    val voltages2 = FloatArray(cells, init = { i -> wrapper.getShort(i * 2 + 6).toFloat() * 0.001f })
+
     println("Voltages: ${voltages.joinToString { "%.3f".format(it) }}")
+    println("Voltages2: ${voltages2.joinToString { "%.3f".format(it) }}")
     val avarage = getUShort(data, 58 + offset).toFloat() * 0.001f
     val delta = getUShort(data, 60 + offset).toFloat() * 0.001f
     val maxCell = data[62 + offset]

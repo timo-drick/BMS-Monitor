@@ -3,6 +3,7 @@ package de.drick.bmsmonitor.ui
 import android.app.Application
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Column
@@ -12,7 +13,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -52,9 +52,10 @@ sealed interface Screens {
 }
 
 class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
-    //var currentScreen: Screens by mutableStateOf(Screens.BmsDetail(JK_BMS))
-    //    private set
-    var currentScreen: Screens by mutableStateOf(Screens.Main)
+    var currentScreen: Screens by mutableStateOf(Screens.Scanner)
+        private set
+
+    var backHandlerEnabled by mutableStateOf(true)
         private set
 
     fun requestPermissions() {
@@ -71,6 +72,24 @@ class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
     fun addDevice(deviceAddress: String) {
         log("Add device $deviceAddress")
         currentScreen = Screens.BmsDetail(deviceAddress)
+    }
+
+    fun back() {
+        when (currentScreen) {
+            is Screens.BmsDetail -> {
+                currentScreen = Screens.Scanner
+            }
+            Screens.Main -> {
+                log("Nothing we can do here!")
+            }
+            Screens.Permission -> {
+                currentScreen = Screens.Main
+            }
+            Screens.Scanner -> {
+                currentScreen = Screens.Main
+            }
+        }
+        backHandlerEnabled = currentScreen != Screens.Main
     }
 
     override fun onCleared() {
@@ -130,7 +149,9 @@ fun MainScreen(
         }
     }*/
 
-
+    BackHandler(enabled = vm.backHandlerEnabled) {
+        vm.back()
+    }
     AnimatedContent(
         modifier = modifier,
         targetState = vm.currentScreen,

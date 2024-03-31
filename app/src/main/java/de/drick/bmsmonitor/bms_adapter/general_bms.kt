@@ -18,7 +18,10 @@ data class GeneralCellInfo(
     val balanceState: String,
     val errorList: List<String>,
     val chargingEnabled: Boolean,
-    val dischargingEnabled: Boolean
+    val dischargingEnabled: Boolean,
+    val temp0: Float,
+    val temp1: Float,
+    val tempMos: Float
 )
 
 data class GeneralDeviceInfo(

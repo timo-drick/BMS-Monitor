@@ -119,7 +119,10 @@ class JKBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
                     balanceState = "${event.balanceState.name} ${"%.3f".format(event.balanceCurrent)} A",
                     errorList = event.errors.map { it.description },
                     chargingEnabled = event.chargingEnabled,
-                    dischargingEnabled = event.dischargingEnabled
+                    dischargingEnabled = event.dischargingEnabled,
+                    temp0 = event.temp0,
+                    temp1 = event.temp1,
+                    tempMos = event.tempMos
                 )
             }
             else -> {}
