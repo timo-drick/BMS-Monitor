@@ -85,13 +85,22 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
     private val notificationCallback = { data: ByteArray ->
         val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
         val hex = data.toHexString()
-        //log(hex)
+        val crcCalculated = crc16Modbus(data, data.size - 2)
+        val crcExpected = buffer.getShort(data.size - 2)
+        if (crcCalculated != crcExpected) {
+            log("Checksum error! calculated: $crcCalculated expected: $crcExpected")
+        }
+        log(hex)
         when (hex.substring(0, prefix1.length)) {
-            prefix1 -> {}
-            prefix2 -> {}
+            prefix1 -> {
+                //log(hex)
+            }
+            prefix2 -> {
+                //log(hex)
+            }
             prefixBmsInfoData -> {
                 //log(hex)
-                val cells = buffer[151].toUByte().toInt()
+                val ascii = data.map { Char(it.toUByte().toInt()) }
                 val modelTypeName = stringFromBytes(data, 41, 36)
                 val bluetoothName = stringFromBytes(data, 83, 12)
                 val pin = stringFromBytes(data, 95, 4)
@@ -103,6 +112,8 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
                 val seconds = buffer[136].toInt()
                 //log("$modelTypeName - $year.$month.$day $hour:$minutes:$seconds")
                 //log("$bluetoothName pin: $pin cells: $cells")
+                val cells = buffer[151].toUByte().toInt()
+                //log("Cells: $cells")
                 cellCount = cells
                 _deviceInfoFlow.value = GeneralDeviceInfo(
                     name = bluetoothName,
@@ -123,13 +134,13 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
                 }
                 // Offset end 53
 
-                val bits = byteArray2BooleanArray(buffer[65], buffer[66], buffer[67], buffer[68])
-                log(bits.joinToString("") { if (it) "1" else "0" })
+                //val bits = byteArray2BooleanArray(buffer[65], buffer[66], buffer[67], buffer[68])
+                //log(bits.joinToString("") { if (it) "1" else "0" })
                 val discharging = byteArray2BooleanArray(buffer[65])[0]
                 val currentSign = 1f //if (discharging) -1f else 1f // not working
                 val current = currentSign * currentRaw.toFloat() * 0.014f // Not exactly the same like in the old app
                 //But closer to the real value
-                log ("Current: ${"%.2f".format(current)}")
+                //log ("Current: ${"%.2f".format(current)}")
 
 
                 val capacity1 = buffer.getShort(79).toFloat() / 10f
@@ -196,7 +207,8 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
                 _cellInfoFlow.value = new
             }
             else -> {
-                log("Unknown prefix: $hex")
+                //log(hex)
+                //log("Unknown prefix: $hex")
             }
         }
     }
