@@ -50,7 +50,7 @@ enum class BalanceState {
 enum class JKBmsErrors(val description: String) {
     CHARGE_OVER_TEMP("Charge over temperature"),          // 0000 0000 0000 0001
     CHARGE_UNDER_TEMP("Charge under temperature"),        // 0000 0000 0000 0010
-    CPU_AUX_ANOMALY("CPU AUX Anomaly"),                     // 0000 0000 0000 0100
+    CPU_AUX_ANOMALY("CPU AUX Anomaly"),                   // 0000 0000 0000 0100
     CELL_UNDER_VOLTAGE("Cell under voltage"),             // 0000 0000 0000 1000
     ERROR_0X010("Error 0x00 0x10"),                       // 0000 0000 0001 0000
     ERROR_0X020("Error 0x00 0x20"),                       // 0000 0000 0010 0000
@@ -98,8 +98,7 @@ class JKBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
     }
 
     private val notificationCallback: (ByteArray) -> Unit = { data: ByteArray ->
-        val event = decoder.addData(data)
-        when (event) {
+        when (val event = decoder.addData(data)) {
             is JKBmsEvent.DeviceInfo -> {
                 _deviceInfoFlow.value = GeneralDeviceInfo(
                     name = event.name,

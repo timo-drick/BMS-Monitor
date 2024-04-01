@@ -12,6 +12,8 @@ import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.os.Build
+import androidx.annotation.RequiresPermission
 import de.drick.compose.permission.ManifestPermission
 import de.drick.compose.permission.checkPermission
 import de.drick.log
@@ -32,7 +34,6 @@ import java.util.UUID
  * https://source.android.com/docs/core/connect/bluetooth/ble
  */
 
-@TargetApi(33)
 @SuppressLint("MissingPermission")
 class BluetoothLeConnectionService(private val ctx: Context) {
     enum class State {
@@ -69,7 +70,7 @@ class BluetoothLeConnectionService(private val ctx: Context) {
             log("BLUETOOTH_CONNECT permission not granted")
             return false
         }
-        device.connectGatt(ctx, false, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE)
+        device.connectGattCompat(ctx, false,CompatTransportType.TRANSPORT_LE, bluetoothGattCallback)
         return true
     }
 
@@ -101,7 +102,7 @@ class BluetoothLeConnectionService(private val ctx: Context) {
                 //log("is writeable: ${characteristic.isWritable()}")
                 //log("Write values: ${value.toHexString()}")
                 if (characteristic.isWritable()) {
-                    val result = gatt.writeCharacteristic(
+                    val result = gatt.writeCharacteristicCompat(
                         characteristic, value,
                         BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
                     )
@@ -149,10 +150,12 @@ class BluetoothLeConnectionService(private val ctx: Context) {
                 log("result: $success")
                 characteristic.getDescriptor(clientCharacteristicConfigurationDescriptor)
                     ?.let { cccDescriptor ->
-                        val result = gatt.writeDescriptor(
-                            cccDescriptor,
-                            if (subscribe) BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                            else BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+                        val result = gatt.writeDescriptorCompat(
+                            descriptor = cccDescriptor,
+                            value = if (subscribe)
+                                BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                            else
+                                BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
                         )
                         log("write ccc descriptor: $result")
                     }
@@ -212,7 +215,7 @@ class BluetoothLeConnectionService(private val ctx: Context) {
             characteristic: BluetoothGattCharacteristic?,
             status: Int
         ) {
-            //log("onWrite: $status")
+            log("onWrite: $status")
         }
 
         override fun onDescriptorWrite(
@@ -231,6 +234,20 @@ class BluetoothLeConnectionService(private val ctx: Context) {
         ) {
             log("descriptor read")
         }
+
+        /**
+         * Backwards compatibility used on devices api < 33
+         */
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt?,
+            characteristic: BluetoothGattCharacteristic?
+        ) {
+            characteristic?.value?.let { value ->
+                //log("Characteristic changed:\n${value.toHexString()}")
+                subscriptionMap[characteristic.uuid]?.callback?.invoke(value)
+            }
+        }
+
         override fun onCharacteristicChanged(
             gatt: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic,
@@ -239,6 +256,7 @@ class BluetoothLeConnectionService(private val ctx: Context) {
             //log("Characteristic changed:\n${value.toHexString()}")
             subscriptionMap[characteristic.uuid]?.callback?.invoke(value)
         }
+
         override fun onCharacteristicRead(
             gatt: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic,
@@ -291,6 +309,56 @@ class BluetoothLeConnectionService(private val ctx: Context) {
     }
 }
 
+enum class CompatTransportType {
+    TRANSPORT_AUTO,
+    TRANSPORT_BREDR,
+    TRANSPORT_LE,
+}
+
+@RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
+fun BluetoothDevice.connectGattCompat(
+    ctx: Context,
+    autoConnect: Boolean = false,
+    transportType: CompatTransportType,
+    bluetoothGattCallback: BluetoothGattCallback
+) {
+    if (Build.VERSION.SDK_INT >= 23) {
+        val type = when(transportType) {
+            CompatTransportType.TRANSPORT_AUTO -> BluetoothDevice.TRANSPORT_AUTO
+            CompatTransportType.TRANSPORT_BREDR -> BluetoothDevice.TRANSPORT_BREDR
+            CompatTransportType.TRANSPORT_LE -> BluetoothDevice.TRANSPORT_LE
+        }
+        connectGatt(ctx, autoConnect, bluetoothGattCallback, type)
+    } else {
+        connectGatt(ctx, autoConnect, bluetoothGattCallback)
+    }
+}
+
+@RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
+fun BluetoothGatt.writeDescriptorCompat(
+    descriptor: BluetoothGattDescriptor,
+    value: ByteArray
+) = if (Build.VERSION.SDK_INT >= 33) {
+    writeDescriptor(descriptor, value)
+} else {
+    descriptor.value = value
+    writeDescriptor(descriptor)
+}
+
+@RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
+fun BluetoothGatt.writeCharacteristicCompat(
+    characteristic: BluetoothGattCharacteristic,
+    value: ByteArray,
+    writeType: Int
+) {
+    if (Build.VERSION.SDK_INT >= 33) {
+        writeCharacteristic(characteristic, value, writeType)
+    } else {
+        characteristic.value = value
+        characteristic.writeType = writeType
+        writeCharacteristic(characteristic)
+    }
+}
 
 fun BluetoothGattCharacteristic.isReadable(): Boolean =
     containsProperty(BluetoothGattCharacteristic.PROPERTY_READ)

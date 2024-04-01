@@ -1,6 +1,7 @@
 package de.drick.bmsmonitor.ui
 
 import android.app.Application
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -13,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -52,7 +54,7 @@ sealed interface Screens {
 }
 
 class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
-    var currentScreen: Screens by mutableStateOf(Screens.Scanner)
+    var currentScreen: Screens by mutableStateOf(Screens.Main)
         private set
 
     var backHandlerEnabled by mutableStateOf(true)
@@ -138,16 +140,21 @@ fun MainScreen(
     vm: MainViewModel = viewModel()
 ) {
     val bluetoothState = rememberBluetoothState()
-    val scanPermission = rememberPermissionState(ManifestPermission.BLUETOOTH_SCAN)
+
+    val scanPermission = if (Build.VERSION.SDK_INT >=31)
+        rememberPermissionState(ManifestPermission.BLUETOOTH_SCAN)
+    else
+        rememberPermissionState(ManifestPermission.ACCESS_FINE_LOCATION)
     val connectPermission = rememberPermissionState(ManifestPermission.BLUETOOTH_CONNECT)
 
-    /*LaunchedEffect(bluetoothState.isEnabled, scanPermission.hasPermission, connectPermission.hasPermission) {
+
+    LaunchedEffect(bluetoothState.isEnabled, scanPermission.hasPermission, connectPermission.hasPermission) {
         if (bluetoothState.isEnabled.not() || scanPermission.hasPermission.not() || connectPermission.hasPermission.not()) {
             vm.requestPermissions()
-        } else {
+        } /*else {
             vm.allPermissionsGranted()
-        }
-    }*/
+        }*/
+    }
 
     BackHandler(enabled = vm.backHandlerEnabled) {
         vm.back()
