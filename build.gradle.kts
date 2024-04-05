@@ -3,6 +3,7 @@ plugins {
     id("com.android.application") version libs.versions.agp apply false
     id("org.jetbrains.kotlin.android") version libs.versions.kotlin apply false
     id("com.google.devtools.ksp") version libs.versions.ksp apply false
+    kotlin("plugin.serialization") version libs.versions.kotlin apply false
     id("com.github.ben-manes.versions") version libs.versions.benManesPlugin
 }
 

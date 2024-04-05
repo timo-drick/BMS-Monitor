@@ -3,6 +3,7 @@ package de.drick.bmsmonitor.ui
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -18,6 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarOutline
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -43,7 +47,10 @@ import kotlinx.coroutines.launch
 @SuppressLint("MissingPermission", "UnrememberedMutableState")
 @Composable
 fun BatteryDetailScreen(
-    deviceAddress: String
+    deviceAddress: String,
+    isMarked: Boolean,
+    onSave: (GeneralDeviceInfo) -> Unit,
+    onDelete: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -69,7 +76,15 @@ fun BatteryDetailScreen(
     BatteryViewNullable(
         connectionState = connectionState,
         deviceInfo = deviceInfo,
-        cellInfo = cellInfo
+        cellInfo = cellInfo,
+        isMarked = isMarked,
+        onMarkToggle = {
+            if (isMarked) {
+                onDelete()
+            } else {
+                deviceInfo?.let(onSave)
+            }
+        }
     )
 }
 
@@ -77,12 +92,16 @@ fun BatteryDetailScreen(
 fun BatteryViewNullable(
     connectionState: BluetoothLeConnectionService.State,
     deviceInfo: GeneralDeviceInfo?,
-    cellInfo:GeneralCellInfo?
+    cellInfo: GeneralCellInfo?,
+    isMarked: Boolean,
+    onMarkToggle: () -> Unit
 ) {
     if (deviceInfo != null && cellInfo != null) {
         BatteryView(
             deviceInfo = deviceInfo,
-            cellInfo = cellInfo
+            cellInfo = cellInfo,
+            isMarked = isMarked,
+            onMarkToggle = onMarkToggle
         )
     } else {
         Column {
@@ -130,7 +149,9 @@ fun BatteryInfoPreview() {
     BatteryView(
         modifier = Modifier.fillMaxSize(),
         deviceInfo = GeneralDeviceInfo("Test name", "Long test name"),
-        cellInfo = mock
+        cellInfo = mock,
+        isMarked = true,
+        onMarkToggle = {}
     )
 }
 
@@ -140,7 +161,9 @@ fun BatteryInfoPreview() {
 fun BatteryView(
     deviceInfo: GeneralDeviceInfo,
     cellInfo: GeneralCellInfo,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isMarked: Boolean,
+    onMarkToggle: () -> Unit
 ) {
     val voltageText = remember(cellInfo) {
         val voltage = cellInfo.cellVoltages.sum()
@@ -149,11 +172,23 @@ fun BatteryView(
     Column(
         modifier = modifier.padding(8.dp)
     ) {
-        Text(
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            text = deviceInfo.name,
-            style = MaterialTheme.typography.headlineLarge
-        )
+        Box(Modifier.fillMaxWidth()) {
+            Text(
+                modifier = Modifier.align(Alignment.Center),
+                text = deviceInfo.name,
+                style = MaterialTheme.typography.headlineLarge
+            )
+            Button(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                onClick = onMarkToggle
+            ) {
+                val icon = if (isMarked) Icons.Default.Star else Icons.Default.StarOutline
+                Icon(
+                    imageVector = icon,
+                    contentDescription = "Mark / Unmark device"
+                )
+            }
+        }
         Text(
             modifier = Modifier.align(Alignment.CenterHorizontally),
             text = deviceInfo.longName,

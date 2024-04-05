@@ -16,12 +16,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import de.drick.bmsmonitor.bms_adapter.GeneralDeviceInfo
+import de.drick.bmsmonitor.repository.BmsRepository
+import de.drick.bmsmonitor.repository.DeviceInfoData
 import de.drick.bmsmonitor.ui.theme.BMSMonitorTheme
 import de.drick.compose.permission.ManifestPermission
 import de.drick.compose.permission.rememberBluetoothState
@@ -54,11 +59,38 @@ sealed interface Screens {
 }
 
 class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
+    private val bmsRepository = BmsRepository(ctx)
+
     var currentScreen: Screens by mutableStateOf(Screens.Main)
         private set
 
     var backHandlerEnabled by mutableStateOf(true)
         private set
+
+    private val _markedDevices = mutableStateListOf<DeviceInfoData>()
+    val markedDevices: SnapshotStateList<DeviceInfoData> = _markedDevices
+
+    init {
+        updateMarkedDevices()
+    }
+
+    fun isDeviceMarked(macAddress: String) = markedDevices.find { it.macAddress == macAddress  } != null
+
+    fun removeMarkedDevice(macAddress: String) {
+        bmsRepository.removeDevice(macAddress)
+        updateMarkedDevices()
+    }
+    fun addMarkedDevice(macAddress: String, generalDeviceInfo: GeneralDeviceInfo) {
+        val data = DeviceInfoData(name = generalDeviceInfo.name, macAddress)
+        bmsRepository.addDevice(data)
+        updateMarkedDevices()
+    }
+
+    private fun updateMarkedDevices() {
+        _markedDevices.clear()
+        val newList = bmsRepository.getAll()
+        _markedDevices.addAll(newList)
+    }
 
     fun requestPermissions() {
         currentScreen = Screens.Permission
@@ -71,7 +103,7 @@ class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
         currentScreen = Screens.Scanner
     }
 
-    fun addDevice(deviceAddress: String) {
+    fun showDeviceDetails(deviceAddress: String) {
         log("Add device $deviceAddress")
         currentScreen = Screens.BmsDetail(deviceAddress)
     }
@@ -145,6 +177,7 @@ fun MainScreen(
         rememberPermissionState(ManifestPermission.BLUETOOTH_SCAN)
     else
         rememberPermissionState(ManifestPermission.ACCESS_FINE_LOCATION)
+
     val connectPermission = rememberPermissionState(ManifestPermission.BLUETOOTH_CONNECT)
 
 
@@ -166,7 +199,9 @@ fun MainScreen(
     ) { screen ->
         when (screen) {
             Screens.Main -> MainView(
-                onAddDevice = { vm.scanForDevices() }
+                markedDevices = vm.markedDevices,
+                onAddDevice = { vm.scanForDevices() },
+                onDeviceSelected = { vm.showDeviceDetails(it.macAddress) }
             )
             Screens.Permission -> PermissionView(
                 isBluetoothEnabled = bluetoothState.isEnabled,
@@ -179,43 +214,20 @@ fun MainScreen(
                 },
             )
             Screens.Scanner -> BluetoothLEScannerScreen(
-                onDeviceSelected = { vm.addDevice(it) }
+                onDeviceSelected = { vm.showDeviceDetails(it) }
             )
-            is Screens.BmsDetail -> BatteryDetailScreen(
-                deviceAddress = screen.deviceAddress
-            )
-        }
-    }
-}
-
-@Preview
-@Composable
-fun PreviewMainView() {
-    BMSMonitorTheme {
-        // A surface container using the 'background' color from the theme
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            MainScreen()
-            /*MainView(
-                isBluetoothEnabled = true,
-                hasScanPermission = true,
-                onEnableBluetooth = { },
-                onRequestPermission = { })*/
-        }
-    }
-}
-
-@Composable
-fun MainView(
-    onAddDevice: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier) {
-        Text(text = "Hello World!")
-        Button(onClick = onAddDevice) {
-            Text("Add new device")
+            is Screens.BmsDetail -> {
+                val deviceAddress = screen.deviceAddress
+                val isDeviceMarked = remember(deviceAddress) {
+                    vm.isDeviceMarked(deviceAddress)
+                }
+                BatteryDetailScreen(
+                    deviceAddress = deviceAddress,
+                    isMarked = isDeviceMarked,
+                    onSave = { vm.addMarkedDevice(deviceAddress, it) },
+                    onDelete = { vm.removeMarkedDevice(deviceAddress) },
+                )
+            }
         }
     }
 }

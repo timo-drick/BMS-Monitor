@@ -36,14 +36,14 @@ import java.util.UUID
 @Composable
 private fun PreviewBluetoothScanner() {
     val mockList = listOf(
-        DeviceInfo("Test 1", "58:cb:52:a5:00:ff", 5),
-        DeviceInfo(name="-", address="F2:46:D2:22:E8:74", rssi=-93),
-        DeviceInfo(name="-", address="37:7D:01:AF:98:36", rssi=-96),
-        DeviceInfo(name="-", address="7F:F8:81:AC:37:6E", rssi=-94),
-        DeviceInfo(name="-", address="E3:BC:14:DC:48:41", rssi=-94),
-        DeviceInfo(name="-", address="4A:B4:5C:B7:D2:38", rssi=-65),
-        DeviceInfo(name="-", address="7C:64:56:95:A7:0D", rssi=-91),
-        DeviceInfo(name="-", address="4E:AD:EA:38:42:19", rssi=-96),
+        BTDeviceInfo("Test 1", "58:cb:52:a5:00:ff", 5),
+        BTDeviceInfo(name="-", address="F2:46:D2:22:E8:74", rssi=-93),
+        BTDeviceInfo(name="-", address="37:7D:01:AF:98:36", rssi=-96),
+        BTDeviceInfo(name="-", address="7F:F8:81:AC:37:6E", rssi=-94),
+        BTDeviceInfo(name="-", address="E3:BC:14:DC:48:41", rssi=-94),
+        BTDeviceInfo(name="-", address="4A:B4:5C:B7:D2:38", rssi=-65),
+        BTDeviceInfo(name="-", address="7C:64:56:95:A7:0D", rssi=-91),
+        BTDeviceInfo(name="-", address="4E:AD:EA:38:42:19", rssi=-96),
     )
     BluetoothLEScannerView(
         scanResultList = mockList,
@@ -51,7 +51,7 @@ private fun PreviewBluetoothScanner() {
     )
 }
 
-data class DeviceInfo(
+data class BTDeviceInfo(
     val name: String,
     val address: String,
     val rssi: Int
@@ -73,7 +73,7 @@ fun BluetoothLEScannerScreen(
 @Composable
 fun BluetoothLEScannerView(
     modifier: Modifier = Modifier,
-    scanResultList: List<DeviceInfo>,
+    scanResultList: List<BTDeviceInfo>,
     onDeviceSelected: (deviceAddress: String) -> Unit
 ) {
     Column(modifier) {
@@ -95,7 +95,7 @@ fun BluetoothLEScannerView(
 
 @Composable
 fun BluetoothDeviceInfoView(
-    deviceInfo: DeviceInfo,
+    deviceInfo: BTDeviceInfo,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -109,13 +109,13 @@ val BMS_SERVICE_UUID = checkNotNull(UUID.fromString("0000ffe0-0000-1000-8000-008
 
 
 @Composable
-fun bluetoothLeScannerEffect(): List<DeviceInfo> {
+fun bluetoothLeScannerEffect(): List<BTDeviceInfo> {
     val bluetoothState = rememberBluetoothState()
     val scanPermission = rememberPermissionState(ManifestPermission.BLUETOOTH_SCAN)
     val ctx = LocalContext.current
     val bluetoothManager = ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     val scanResults = remember {
-        mutableStateListOf<DeviceInfo>()
+        mutableStateListOf<BTDeviceInfo>()
     }
     LifecycleResumeEffect(bluetoothState.isEnabled, scanPermission.hasPermission) {
         val bluetoothLeScanner = bluetoothManager.adapter.bluetoothLeScanner
@@ -129,7 +129,7 @@ fun bluetoothLeScannerEffect(): List<DeviceInfo> {
                     result.device.name ?: "-"
                 else
                     address
-                val newEntry = DeviceInfo(name, address, result.rssi)
+                val newEntry = BTDeviceInfo(name, address, result.rssi)
                 val index = scanResults.indexOfFirst { it.address == newEntry.address }
                 if (index < 0) {
                     scanResults.add(newEntry)

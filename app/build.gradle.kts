@@ -1,7 +1,8 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("com.google.devtools.ksp")
+    //id("com.google.devtools.ksp") used for room
+    kotlin("plugin.serialization")
 }
 
 android {
@@ -52,12 +53,13 @@ android {
 
 dependencies {
 
-    implementation(libs.androidx.room.runtime)
-    annotationProcessor(libs.androidx.room.compiler)
-    // To use Kotlin annotation processing tool (kapt)
-    ksp(libs.androidx.room.compiler)
+    //implementation(libs.androidx.room.runtime)
+    //annotationProcessor(libs.androidx.room.compiler)
+    //ksp(libs.androidx.room.compiler)
     // optional - Kotlin Extensions and Coroutines support for Room
-    implementation(libs.room.ktx)
+    //implementation(libs.room.ktx)
+    //implementation(libs.ser)
+    implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
