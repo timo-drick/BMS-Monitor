@@ -107,9 +107,14 @@ fun BluetoothDeviceInfoView(
 
 val BMS_SERVICE_UUID = checkNotNull(UUID.fromString("0000ffe0-0000-1000-8000-00805f9b34fb"))
 
+private val serviceFilter = ScanFilter.Builder().apply {
+    setServiceUuid(ParcelUuid(BMS_SERVICE_UUID))
+}.build()
 
 @Composable
-fun bluetoothLeScannerEffect(): List<BTDeviceInfo> {
+fun bluetoothLeScannerEffect(
+    macAddressList: List<String> = emptyList()
+): List<BTDeviceInfo> {
     val bluetoothState = rememberBluetoothState()
     val scanPermission = rememberPermissionState(ManifestPermission.BLUETOOTH_SCAN)
     val ctx = LocalContext.current
@@ -142,13 +147,20 @@ fun bluetoothLeScannerEffect(): List<BTDeviceInfo> {
         }
         if (ManifestPermission.BLUETOOTH_SCAN.checkPermission(ctx)) {
             log("Start scanning")
-            val filter1 = ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(BMS_SERVICE_UUID))
-                .build()
+            val filterList = if (macAddressList.isEmpty()) {
+                listOf(serviceFilter)
+            } else {
+                macAddressList.map {
+                    ScanFilter.Builder().apply {
+                        setDeviceAddress(it)
+                    }.build()
+                }
+            }
+
             val settings = ScanSettings.Builder()
                 .build()
-            //bluetoothLeScanner.startScan(listOf(filter1), settings, scanCallback)
-            bluetoothLeScanner.startScan(scanCallback)
+            bluetoothLeScanner.startScan(filterList, settings, scanCallback)
+            //bluetoothLeScanner.startScan(scanCallback)
         }
         onPauseOrDispose {
             if (ManifestPermission.BLUETOOTH_SCAN.checkPermission(ctx)) {

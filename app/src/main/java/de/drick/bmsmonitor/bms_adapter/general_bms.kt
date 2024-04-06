@@ -3,11 +3,12 @@ package de.drick.bmsmonitor.bms_adapter
 import android.content.Context
 import de.drick.bmsmonitor.bluetooth.BluetoothLeConnectionService
 import de.drick.bmsmonitor.bms_adapter.jk_bms.JKBmsAdapter
+import de.drick.bmsmonitor.bms_adapter.yy_bms.YYBmsAdapter
 import kotlinx.coroutines.flow.StateFlow
 
 
 data class GeneralCellInfo(
-    val stateOfChard: Int, // in percent
+    val stateOfCharge: Int, // in percent
     val maxCapacity: Float, // in Ah
     val current: Float, // in A
     val cellVoltages: FloatArray, // cell voltages in V

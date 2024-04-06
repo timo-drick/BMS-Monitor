@@ -35,23 +35,46 @@ private val testData = listOf(
     "000000000000000000feff7fdc2f01010000000000ee"
 )
 
+val yybmsTestData = """
+0103a00200de0fdf0fdf0fde0fde0fdd0fdc0fdf0fdd0fd70fdb0fdc0fd80fdb0fdc0fdb0fdb0f00000000000000000000000000000000dc059411ffff0000000001093d3b3b3b0000003b3b000000050105015c6410000000e6036e0c000000000007040034004afe00004afe000000000000000000000000000000003c0f070004100000000000000000000000000000e41d53014000010000000000000000000000582c
+0103a00200de0fdf0fe00fde0fde0fdd0fdc0fdf0fdc0fd70fdb0fdc0fd70fdb0fdc0fdb0fda0f00000000000000000000000000000000dc059411ffff0000000002093d3b3b3b0000003b3b000000050105015c6410000000e6036e0c000000000007040034004afe00004afe000000000000000000000000000000003c0f070004100000000000000000000000000000e41d53014000010000000000000000000000ed82
+0103a00000de0fdf0fe00fde0fde0fdd0fdc0fdf0fdd0fd70fdb0fdc0fd80fdb0fdc0fdc0fda0f00000000000000000000000000000000dc059411ffff0000000002093d3b3b3b0000003b3b000000050105015c6410000000e6036e0c000000000007040034004afe00004afe000000000000000000000000000000003c0f070004100000000000000000000000000000e41d530140000100000000000000000000000e12
+0103a00200de0fdf0fe00fde0fde0fdd0fdc0fdf0fdd0fd70fdb0fdc0fd80fdc0fdc0fdb0fdb0f00000000000000000000000000000000dc059411ffff0000000002093d3b3b3b0000003b3b000000050105015c6410000000e6036e0c000000000007040034004afe00004afe000000000000000000000000000000003c0f070004100000000000000000000000000000e41d53014000010000000000000000000000ccfd
+0103a00000de0fdf0fe00fde0fde0fdd0fdc0fdf0fdd0fd70fdb0fdc0fd80fdb0fdc0fdb0fdb0f00000000000000000000000000000000dc059411ffff0000000002093d3b3b3b0000003b3b000000050105015c6410000000e6036e0c000000000007040034004afe00004afe000000000000000000000000000000003c0f070004100000000000000000000000000000e41d530140000100000000000000000000000cd6
+""".trimIndent()
 
 private var is32s: Boolean = false
 private val frameBuffer = FrameBuffer()
 
+
+
 @OptIn(ExperimentalStdlibApi::class)
 fun main() {
+    yybmsTestData.split("\n").forEach { hexData ->
+        val data = hexData.hexToByteArray()
+        val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
+        val lastValue = buffer.getShort(data.size - 2)
+
+        val crc = crc16Modbus(data, data.size - 2).toShort()
+
+        println("Crc: $crc ${crc.toHexString()}  value: ${data.toHexString(data.size - 2)} short: $lastValue")
+    }
+    val command = "01030001004f".hexToByteArray()
+    //val command = "01030050005045e7"
+    val expectedCrc = "55fe"
+    println("${command.toHexString()} -> ${crc16Modbus(command, command.size).toHexString()}")
+
     //val decoder = JkBmsDecoder()
     //decoder.decode(testData)
     //val data = "9f0d".hexToByteArray()
     //println("Short: ${getShort(data, 0)} byte1: ${data[0].toUByte()} byte2: ${data[1].toUByte()}")
     is32s = true
-    testData.forEach {
+    /*testData.forEach {
         addData(it.hexToByteArray())
     }
     val hexFormat = HexFormat {
         number.prefix = "0x"
-    }
+    }*/
     /*val data = jk_b2a24s20p_jk02
         .split("\n")
         .map {line ->
@@ -64,14 +87,14 @@ fun main() {
                 }
                 .toByteArray()
         }*/
-    val data = testAnomalyBalancing
+    /*val data = testAnomalyBalancing
         .split("\n")
         .map { it.hexToByteArray() }
     //println(data[0].toHexString(hexFormat))
     is32s = true
     data.forEach {
         addData(it)
-    }
+    }*/
 }
 
 fun addData(newData: ByteArray) {
@@ -86,7 +109,7 @@ fun addData(newData: ByteArray) {
     if (frameBuffer.size >= MIN_RESPONSE_SIZE) {
         val frameSize = 300
         val raw = frameBuffer.build()
-        val computedCrc = crc(raw, frameSize - 1)
+        val computedCrc = crc8Add(raw, frameSize - 1)
         val remoteCrc = raw[frameSize - 1]
         if (computedCrc != remoteCrc) {
             println("CRC error crc: $remoteCrc expected: $computedCrc")

@@ -12,7 +12,7 @@ fun crc8Add(data: ByteArray, length: Int): Byte {
 }
 
 /**
- * Online tool to find out crc:
+ * Online tool to find crc:
  * https://www.lammertbies.nl/comm/info/crc-calculation
  *
  * Converted from c sourcecode from here:
@@ -41,8 +41,8 @@ fun crc16Modbus(data: ByteArray, length: Int): Short {
     var crc = CRC_START_MODBUS
     val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
     for (i in 0 until length)  {
-        val short_c = buffer[i].toInt()//0x00ff and buffer.getShort(i).toInt()
-        val tmp = crc xor short_c
+        val shortC = buffer[i].toInt()
+        val tmp = crc xor shortC
         crc = (crc shr 8) xor crcTab16[tmp and 0xff]
     }
     return crc.toShort()

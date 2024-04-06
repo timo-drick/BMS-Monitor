@@ -11,6 +11,12 @@ import java.nio.ByteOrder
  */
 
 class JkBmsDecoder() {
+    enum class Command(
+        val code: Byte
+    ) {
+        COMMAND_CELL_INFO(0x96.toByte()),
+        COMMAND_DEVICE_INFO(0x97.toByte())
+    }
 
     fun addData(newData: ByteArray): JKBmsEvent? {
         var result: JKBmsEvent? = null
@@ -159,13 +165,14 @@ class JkBmsDecoder() {
             errors = errors
         )
     }
-    fun encode(address: Byte, value: Int, length: Byte): ByteArray {
+
+    fun encode(command: Command, value: Int, length: Byte): ByteArray {
         val data = ByteArray(20, init = { 0 })
         data[0] = 0xAA.toByte() // start sequence
         data[1] = 0x55.toByte() // start sequence
         data[2] = 0x90.toByte() // start sequence
         data[3] = 0xEB.toByte() // start sequence
-        data[4] = address       // holding register
+        data[4] = command.code  // holding register
         data[5] = length        // size of the value in byte
         data[6] = (value shr 0).toByte()
         data[7] = (value shr 8).toByte()

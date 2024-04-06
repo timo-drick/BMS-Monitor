@@ -116,7 +116,7 @@ fun BatteryViewNullable(
 @Composable
 fun BatteryInfoPreview() {
     val mock = GeneralCellInfo(
-        stateOfChard = 69,
+        stateOfCharge = 69,
         maxCapacity = 28f,
         current = 2.2f,
         cellVoltages = floatArrayOf(
@@ -211,7 +211,7 @@ fun BatteryView(
         }
         Text(
             modifier = Modifier.align(Alignment.CenterHorizontally),
-            text = "SOC: ${cellInfo.stateOfChard}%",
+            text = "SOC: ${cellInfo.stateOfCharge}%",
             style = MaterialTheme.typography.displaySmall
         )
         Row(
@@ -334,7 +334,7 @@ fun BatteryView(
 @Composable
 fun PreviewBatteryWidget() {
     val mock = GeneralCellInfo(
-        stateOfChard = 69,
+        stateOfCharge = 69,
         maxCapacity = 28f,
         current = 2.2f,
         cellVoltages = floatArrayOf(
@@ -396,7 +396,7 @@ fun BatteryWidget(
         }
         Text(
             modifier = Modifier.align(Alignment.CenterHorizontally),
-            text = "SOC: ${batteryInfo.stateOfChard}%",
+            text = "SOC: ${batteryInfo.stateOfCharge}%",
             style = MaterialTheme.typography.displaySmall
         )
         Spacer(Modifier.height(12.dp))

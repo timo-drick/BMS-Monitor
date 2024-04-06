@@ -23,6 +23,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.tooling.preview.Preview
@@ -35,6 +38,10 @@ private val mockDevices = listOf(
     DeviceInfoData("Test device 2", "B"),
     DeviceInfoData("Test device 3", "C"),
 )
+private val mockDevicesOffline = listOf(
+    DeviceInfoData("Test device offline", "A"),
+)
+
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
 fun PreviewMainView() {
@@ -53,6 +60,11 @@ fun PreviewMainView() {
     }
 }
 
+data class UIDeviceItem(
+    val item: DeviceInfoData,
+    val btDeviceInfo: BTDeviceInfo?
+)
+
 @Composable
 fun MainView(
     markedDevices: List<DeviceInfoData>,
@@ -60,6 +72,20 @@ fun MainView(
     onDeviceSelected: (DeviceInfoData) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val btDevices = remember(markedDevices) {
+        markedDevices.map { it.macAddress }
+    }
+    val scanResults = bluetoothLeScannerEffect(btDevices)
+
+    val orderedList by remember {
+        derivedStateOf {
+            markedDevices.map { deviceInfo ->
+                val btDeviceInfo = scanResults.find { it.address == deviceInfo.macAddress }
+                UIDeviceItem(deviceInfo, btDeviceInfo)
+            }
+        }
+    }
+
     Column(modifier) {
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -71,11 +97,14 @@ fun MainView(
                 }
                 Spacer(Modifier.height(8.dp))
             }
-            itemsIndexed(markedDevices) { index, item ->
+            itemsIndexed(orderedList) { index, item ->
                 val cornerRadius = 8.dp
                 val cornerShape = when (index) {
-                    0 -> RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius)
-                    markedDevices.size - 1 -> RoundedCornerShape(
+                    0 -> if (orderedList.size > 1)
+                        RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius)
+                    else
+                        RoundedCornerShape(cornerRadius)
+                    orderedList.size - 1 -> RoundedCornerShape(
                         bottomStart = cornerRadius,
                         bottomEnd = cornerRadius
                     )
@@ -92,7 +121,7 @@ fun MainView(
                         )
                     SavedDeviceItem(
                         modifier = Modifier
-                            .clickable(onClick = { onDeviceSelected(item) }),
+                            .clickable(onClick = { onDeviceSelected(item.item) }),
                         data = item
                     )
                 }
@@ -103,7 +132,7 @@ fun MainView(
 
 @Composable
 fun SavedDeviceItem(
-    data: DeviceInfoData,
+    data: UIDeviceItem,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -113,7 +142,7 @@ fun SavedDeviceItem(
     ) {
         Spacer(modifier = Modifier.width(20.dp))
         Text(
-            text = "${data.name}",
+            text = "${data.item.name} btstate: ${data.btDeviceInfo}",
             modifier = Modifier.weight(1f, true),
             //color = contentColor
         )

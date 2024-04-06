@@ -81,16 +81,13 @@ class JKBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
 
     private val decoder = JkBmsDecoder()
 
-    private val COMMAND_CELL_INFO = 0x96.toByte()
-    private val COMMAND_DEVICE_INFO = 0x97.toByte()
-
 
     override suspend fun start() {
         service.subscribeForNotification(serviceUUID, characteristicNotificationUUID, notificationCallback)
         delay(500)
-        writeCommand(COMMAND_DEVICE_INFO, 0, 0)
+        writeCommand(JkBmsDecoder.Command.COMMAND_DEVICE_INFO)
         delay(500)
-        writeCommand(COMMAND_CELL_INFO, 0, 0)
+        writeCommand(JkBmsDecoder.Command.COMMAND_CELL_INFO)
     }
 
     override suspend fun stop() {
@@ -107,7 +104,7 @@ class JKBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
             }
             is JKBmsEvent.CellInfo -> {
                 _cellInfoFlow.value = GeneralCellInfo(
-                    stateOfChard = event.soc,
+                    stateOfCharge = event.soc,
                     maxCapacity = event.capacity,
                     current = event.current,
                     cellVoltages = event.cellVoltageList,
@@ -128,8 +125,8 @@ class JKBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
         }
     }
 
-    private fun writeCommand(address: Byte, value: Int, length: Byte) {
-        service.writeCharacteristic(serviceUUID, characteristicWriteCommandUUID,decoder.encode(address, value, length) )
+    private fun writeCommand(command: JkBmsDecoder.Command) {
+        service.writeCharacteristic(serviceUUID, characteristicWriteCommandUUID, decoder.encode(command, 0, 0) )
     }
 
 }
