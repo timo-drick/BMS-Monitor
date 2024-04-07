@@ -211,11 +211,21 @@ fun BatteryView(
             )
             Spacer(Modifier.weight(1f))
         }
-        Text(
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            text = "SOC: ${cellInfo.stateOfCharge}%",
-            style = MaterialTheme.typography.displaySmall
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "SOC: ${cellInfo.stateOfCharge}%",
+                style = MaterialTheme.typography.displaySmall
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "C: ${cellInfo.maxCapacity} Ah",
+                style = MaterialTheme.typography.displaySmall
+            )
+            Spacer(Modifier.weight(1f))
+        }
         Row(
             modifier = Modifier.align(Alignment.CenterHorizontally),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
