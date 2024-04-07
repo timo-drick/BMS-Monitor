@@ -32,9 +32,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import de.drick.bmsmonitor.bluetooth.BTDeviceInfo
 import de.drick.bmsmonitor.repository.DeviceInfoData
 import de.drick.bmsmonitor.ui.theme.BMSMonitorTheme
-import kotlinx.collections.immutable.toPersistentList
+import kotlinx.collections.immutable.toPersistentSet
 
 private val mockDevices = listOf(
     DeviceInfoData("Test device 1", "A"),
@@ -77,10 +78,10 @@ fun MainView(
 ) {
     val btDevices by remember {
         derivedStateOf {
-            markedDevices.map { it.macAddress }.toPersistentList()
+            markedDevices.map { it.macAddress }.toPersistentSet()
         }
     }
-    val scanResults = bluetoothLeScannerEffect(btDevices)
+    val scanResults = bluetoothLeScannerMacEffect(btDevices)
 
     val orderedList by remember {
         derivedStateOf {

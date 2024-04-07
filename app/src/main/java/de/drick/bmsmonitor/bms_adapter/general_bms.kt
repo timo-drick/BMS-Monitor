@@ -4,6 +4,8 @@ import android.content.Context
 import de.drick.bmsmonitor.bluetooth.BluetoothLeConnectionService
 import de.drick.bmsmonitor.bms_adapter.jk_bms.JKBmsAdapter
 import de.drick.bmsmonitor.bms_adapter.yy_bms.YYBmsAdapter
+import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.flow.StateFlow
 
 
@@ -47,6 +49,13 @@ class BmsAdapter(
     private val deviceAddress: String
 ) {
     private val service = BluetoothLeConnectionService(ctx)
+
+    companion object {
+        val BMS_SERVICE_UUIDs = persistentSetOf(
+            JKBmsAdapter.serviceUUID,
+            YYBmsAdapter.serviceUUID
+        ).toImmutableSet()
+    }
 
     //private val bmsAdapter = JKBmsAdapter(service)
     private val bmsAdapter: BmsInterface = when {

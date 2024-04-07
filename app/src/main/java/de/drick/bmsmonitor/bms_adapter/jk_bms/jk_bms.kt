@@ -67,13 +67,16 @@ enum class JKBmsErrors(val description: String) {
 }
 
 class JKBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterface {
-    //private val serviceUUID = 0xFFE0
-    //private val characteristicNotificationUUID = 0xFFE1
-    //private val characteristicWriteCommandUUID = 0xFFE1
-    private val serviceUUID = checkNotNull(UUID.fromString("0000ffe0-0000-1000-8000-00805f9b34fb"))
-    private val characteristicNotificationUUID = checkNotNull(UUID.fromString("0000ffe1-0000-1000-8000-00805f9b34fb"))
-    private val characteristicWriteCommandUUID = characteristicNotificationUUID
-
+    companion object {
+        //private val serviceUUID = 0xFFE0
+        //private val characteristicNotificationUUID = 0xFFE1
+        //private val characteristicWriteCommandUUID = 0xFFE1
+        val serviceUUID =
+            checkNotNull(UUID.fromString("0000ffe0-0000-1000-8000-00805f9b34fb"))
+        private val characteristicNotificationUUID =
+            checkNotNull(UUID.fromString("0000ffe1-0000-1000-8000-00805f9b34fb"))
+        private val characteristicWriteCommandUUID = characteristicNotificationUUID
+    }
     private val _cellInfoFlow = MutableStateFlow<GeneralCellInfo?>(null)
     override val cellInfoState: StateFlow<GeneralCellInfo?> = _cellInfoFlow
     private val _deviceInfoFlow = MutableStateFlow<GeneralDeviceInfo?>(null)

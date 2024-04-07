@@ -17,7 +17,7 @@ import java.util.UUID
 
 class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterface {
     companion object {
-        private val YY_BMS_SERVICE =
+        val serviceUUID =
             checkNotNull(UUID.fromString("0000ffe0-0000-1000-8000-00805f9b34fb"))
         private val YY_BMS_BLE_RX_CHARACTERISTICS =
             checkNotNull(UUID.fromString("0000ffe1-0000-1000-8000-00805f9b34fb"))
@@ -35,18 +35,18 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
     private var running = false
 
     override suspend fun start() {
-        service.subscribeForNotification(YY_BMS_SERVICE, YY_BMS_BLE_RX_CHARACTERISTICS, notificationCallback)
+        service.subscribeForNotification(serviceUUID, YY_BMS_BLE_RX_CHARACTERISTICS, notificationCallback)
         withContext(Dispatchers.IO) {
             launch {
                 running = true
-                service.writeCharacteristic(YY_BMS_SERVICE, YY_BMS_BLE_TX_CHARACTERISTICS, YYBmsDecoder.COMMAND_BMS_INFO_DATA)
+                service.writeCharacteristic(serviceUUID, YY_BMS_BLE_TX_CHARACTERISTICS, YYBmsDecoder.COMMAND_BMS_INFO_DATA)
                 delay(500)
                 while (isActive && running) {
                     if (deviceInfoState.value == null) {
-                        service.writeCharacteristic(YY_BMS_SERVICE, YY_BMS_BLE_TX_CHARACTERISTICS, YYBmsDecoder.COMMAND_BMS_INFO_DATA)
+                        service.writeCharacteristic(serviceUUID, YY_BMS_BLE_TX_CHARACTERISTICS, YYBmsDecoder.COMMAND_BMS_INFO_DATA)
                         delay(500)
                     }
-                    service.writeCharacteristic(YY_BMS_SERVICE, YY_BMS_BLE_TX_CHARACTERISTICS, YYBmsDecoder.COMMAND_CELL_DATA)
+                    service.writeCharacteristic(serviceUUID, YY_BMS_BLE_TX_CHARACTERISTICS, YYBmsDecoder.COMMAND_CELL_DATA)
                     delay(1000)
                 }
             }
@@ -55,7 +55,7 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
 
     override suspend fun stop() {
         running = false
-        service.unSubscribeForNotification(YY_BMS_SERVICE, YY_BMS_BLE_RX_CHARACTERISTICS)
+        service.unSubscribeForNotification(serviceUUID, YY_BMS_BLE_RX_CHARACTERISTICS)
     }
 
     private val notificationCallback = { data: ByteArray ->

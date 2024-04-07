@@ -1,11 +1,7 @@
 package de.drick.bmsmonitor.ui
 
-import android.bluetooth.BluetoothManager
-import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
-import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
-import android.content.Context
 import android.os.ParcelUuid
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -16,7 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
@@ -25,16 +20,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import de.drick.bmsmonitor.bms_adapter.DeviceMacPrefix
+import de.drick.bmsmonitor.bluetooth.BTDeviceInfo
+import de.drick.bmsmonitor.bluetooth.BluetoothLeScanner
+import de.drick.bmsmonitor.bms_adapter.BmsAdapter
 import de.drick.compose.permission.ManifestPermission
 import de.drick.compose.permission.checkPermission
 import de.drick.compose.permission.rememberBluetoothState
 import de.drick.compose.permission.rememberPermissionState
 import de.drick.log
 import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.PersistentList
-import kotlinx.collections.immutable.immutableListOf
+import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 import java.util.UUID
 
 
@@ -42,14 +39,14 @@ import java.util.UUID
 @Composable
 private fun PreviewBluetoothScanner() {
     val mockList = persistentListOf(
-        BTDeviceInfo("Test 1", "58:cb:52:a5:00:ff", 5),
-        BTDeviceInfo(name="-", address="F2:46:D2:22:E8:74", rssi=-93),
-        BTDeviceInfo(name="-", address="37:7D:01:AF:98:36", rssi=-96),
-        BTDeviceInfo(name="-", address="7F:F8:81:AC:37:6E", rssi=-94),
-        BTDeviceInfo(name="-", address="E3:BC:14:DC:48:41", rssi=-94),
-        BTDeviceInfo(name="-", address="4A:B4:5C:B7:D2:38", rssi=-65),
-        BTDeviceInfo(name="-", address="7C:64:56:95:A7:0D", rssi=-91),
-        BTDeviceInfo(name="-", address="4E:AD:EA:38:42:19", rssi=-96),
+        BTDeviceInfo("Test 1", "58:cb:52:a5:00:ff", 5, 0),
+        BTDeviceInfo(name="-", address="F2:46:D2:22:E8:74", rssi=-93, 0),
+        BTDeviceInfo(name="-", address="37:7D:01:AF:98:36", rssi=-96, 0),
+        BTDeviceInfo(name="-", address="7F:F8:81:AC:37:6E", rssi=-94, 0),
+        BTDeviceInfo(name="-", address="E3:BC:14:DC:48:41", rssi=-94, 0),
+        BTDeviceInfo(name="-", address="4A:B4:5C:B7:D2:38", rssi=-65, 0),
+        BTDeviceInfo(name="-", address="7C:64:56:95:A7:0D", rssi=-91, 0),
+        BTDeviceInfo(name="-", address="4E:AD:EA:38:42:19", rssi=-96, 0),
     ).toMutableStateList()
     BluetoothLEScannerView(
         scanResultList = mockList,
@@ -57,18 +54,12 @@ private fun PreviewBluetoothScanner() {
     )
 }
 
-data class BTDeviceInfo(
-    val name: String,
-    val address: String,
-    val rssi: Int
-)
-
 @Composable
 fun BluetoothLEScannerScreen(
     modifier: Modifier = Modifier,
     onDeviceSelected: (deviceAddress: String) -> Unit
 ) {
-    val scanResults = bluetoothLeScannerEffect()
+    val scanResults = bluetoothLeScannerServiceEffect(BmsAdapter.BMS_SERVICE_UUIDs)
     BluetoothLEScannerView(
         modifier = modifier,
         scanResultList = scanResults,
@@ -111,69 +102,62 @@ fun BluetoothDeviceInfoView(
     )
 }
 
-val BMS_SERVICE_UUID = checkNotNull(UUID.fromString("0000ffe0-0000-1000-8000-00805f9b34fb"))
+@Composable
+fun bluetoothLeScannerEffect() : SnapshotStateList<BTDeviceInfo> {
+    val settings = ScanSettings.Builder().build()
+    val filterList = persistentListOf<ScanFilter>()
+    return bluetoothLeScannerEffect(filterList, settings)
+}
 
-private val serviceFilter = ScanFilter.Builder().apply {
-    setServiceUuid(ParcelUuid(BMS_SERVICE_UUID))
-}.build()
+@Composable
+fun bluetoothLeScannerMacEffect(
+    macAddressList: ImmutableSet<String>
+) : SnapshotStateList<BTDeviceInfo> {
+    val filterList = macAddressList.map {
+        ScanFilter.Builder().apply {
+            setDeviceAddress(it)
+        }.build()
+    }.toPersistentList()
+    val settings = ScanSettings.Builder()
+        .build()
+    return bluetoothLeScannerEffect(filterList, settings)
+}
+
+@Composable
+fun bluetoothLeScannerServiceEffect(
+    serviceFilter: ImmutableSet<UUID>
+) : SnapshotStateList<BTDeviceInfo> {
+    val settings = ScanSettings.Builder()
+        .build()
+    val filter = ScanFilter.Builder().apply {
+        serviceFilter.forEach {
+            setServiceUuid(ParcelUuid(it))
+        }
+    }.build()
+    return bluetoothLeScannerEffect(persistentListOf(filter), settings)
+}
 
 @Composable
 fun bluetoothLeScannerEffect(
-    macAddressList: PersistentList<String> = persistentListOf()
+    filterList: ImmutableList<ScanFilter>, settings: ScanSettings
 ): SnapshotStateList<BTDeviceInfo> {
     val bluetoothState = rememberBluetoothState()
     val scanPermission = rememberPermissionState(ManifestPermission.BLUETOOTH_SCAN)
     val ctx = LocalContext.current
-    val bluetoothManager = ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-    val scanResults = remember {
-        mutableStateListOf<BTDeviceInfo>()
+    val scanner = remember {
+        BluetoothLeScanner(ctx)
     }
     LifecycleResumeEffect(bluetoothState.isEnabled, scanPermission.hasPermission) {
-        val bluetoothLeScanner = bluetoothManager.adapter.bluetoothLeScanner
-        val scanCallback = object : ScanCallback() {
-            override fun onScanResult(callbackType: Int, result: ScanResult) {
-                val address = result.device.address
-                val bmsType = DeviceMacPrefix.entries.find { address.startsWith(it.prefix) }
-                log("type: $callbackType, bmsType: $bmsType result: $result")
-                if (bmsType == null) return
-                val name = if (ManifestPermission.BLUETOOTH_CONNECT.checkPermission(ctx))
-                    result.device.name ?: "-"
-                else
-                    address
-                val newEntry = BTDeviceInfo(name, address, result.rssi)
-                val index = scanResults.indexOfFirst { it.address == newEntry.address }
-                if (index < 0) {
-                    scanResults.add(newEntry)
-                } else {
-                    scanResults[index] = newEntry
-                }
-                log(newEntry)
-                scanResults.sortByDescending { it.rssi }
-            }
-        }
         if (ManifestPermission.BLUETOOTH_SCAN.checkPermission(ctx)) {
             log("Start scanning")
-            val filterList = if (macAddressList.isEmpty()) {
-                listOf(serviceFilter)
-            } else {
-                macAddressList.map {
-                    ScanFilter.Builder().apply {
-                        setDeviceAddress(it)
-                    }.build()
-                }
-            }
-
-            val settings = ScanSettings.Builder()
-                .build()
-            bluetoothLeScanner.startScan(filterList, settings, scanCallback)
-            //bluetoothLeScanner.startScan(scanCallback)
+            scanner.start(filterList, settings)
         }
         onPauseOrDispose {
             if (ManifestPermission.BLUETOOTH_SCAN.checkPermission(ctx)) {
                 log("Stop scanning")
-                bluetoothLeScanner.stopScan(scanCallback)
+                scanner.stop()
             }
         }
     }
-    return scanResults
+    return scanner.scanResults
 }
