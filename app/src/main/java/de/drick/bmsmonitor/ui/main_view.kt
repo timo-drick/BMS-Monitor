@@ -26,12 +26,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.drick.bmsmonitor.repository.DeviceInfoData
 import de.drick.bmsmonitor.ui.theme.BMSMonitorTheme
+import kotlinx.collections.immutable.toPersistentList
 
 private val mockDevices = listOf(
     DeviceInfoData("Test device 1", "A"),
@@ -44,7 +47,7 @@ private val mockDevicesOffline = listOf(
 
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
-fun PreviewMainView() {
+private fun PreviewMainView() {
     BMSMonitorTheme {
         // A surface container using the 'background' color from the theme
         Surface(
@@ -52,7 +55,7 @@ fun PreviewMainView() {
             color = MaterialTheme.colorScheme.background
         ) {
             MainView(
-                mockDevices,
+                mockDevices.toMutableStateList(),
                 onAddDevice = {},
                 onDeviceSelected = {}
             )
@@ -67,13 +70,15 @@ data class UIDeviceItem(
 
 @Composable
 fun MainView(
-    markedDevices: List<DeviceInfoData>,
+    markedDevices: SnapshotStateList<DeviceInfoData>,
     onAddDevice: () -> Unit,
     onDeviceSelected: (DeviceInfoData) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val btDevices = remember(markedDevices) {
-        markedDevices.map { it.macAddress }
+    val btDevices by remember {
+        derivedStateOf {
+            markedDevices.map { it.macAddress }.toPersistentList()
+        }
     }
     val scanResults = bluetoothLeScannerEffect(btDevices)
 

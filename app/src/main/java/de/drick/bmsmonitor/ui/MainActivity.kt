@@ -89,8 +89,8 @@ fun PermissionView(
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
-    onFinish: () -> Unit,
-    vm: MainViewModel = viewModel()
+    vm: MainViewModel = viewModel(),
+    onFinish: () -> Unit
 ) {
     val bluetoothState = rememberBluetoothState()
 

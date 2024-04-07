@@ -94,17 +94,19 @@ fun BatteryViewNullable(
     deviceInfo: GeneralDeviceInfo?,
     cellInfo: GeneralCellInfo?,
     isMarked: Boolean,
+    modifier: Modifier = Modifier,
     onMarkToggle: () -> Unit
 ) {
     if (deviceInfo != null && cellInfo != null) {
         BatteryView(
+            modifier = modifier,
             deviceInfo = deviceInfo,
             cellInfo = cellInfo,
             isMarked = isMarked,
             onMarkToggle = onMarkToggle
         )
     } else {
-        Column {
+        Column(modifier) {
             Text("Connection state: ${connectionState.name}")
             Text("No values received yet.")
         }
@@ -114,7 +116,7 @@ fun BatteryViewNullable(
 
 @Preview(showBackground = true)
 @Composable
-fun BatteryInfoPreview() {
+private fun BatteryInfoPreview() {
     val mock = GeneralCellInfo(
         stateOfCharge = 69,
         maxCapacity = 28f,
@@ -161,8 +163,8 @@ fun BatteryInfoPreview() {
 fun BatteryView(
     deviceInfo: GeneralDeviceInfo,
     cellInfo: GeneralCellInfo,
-    modifier: Modifier = Modifier,
     isMarked: Boolean,
+    modifier: Modifier = Modifier,
     onMarkToggle: () -> Unit
 ) {
     val voltageText = remember(cellInfo) {
@@ -332,7 +334,7 @@ fun BatteryView(
 
 @Preview(showBackground = true)
 @Composable
-fun PreviewBatteryWidget() {
+private fun PreviewBatteryWidget() {
     val mock = GeneralCellInfo(
         stateOfCharge = 69,
         maxCapacity = 28f,

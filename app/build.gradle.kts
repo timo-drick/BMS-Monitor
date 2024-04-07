@@ -61,11 +61,14 @@ dependencies {
     //implementation(libs.ser)
     implementation(libs.kotlinx.serialization.json)
 
+    implementation(libs.kotlinx.collections.immutable)
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
+    lintChecks(libs.compose.lint.checks) // https://slackhq.github.io/compose-lints
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)

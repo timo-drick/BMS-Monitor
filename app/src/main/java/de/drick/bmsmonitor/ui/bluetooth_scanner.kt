@@ -18,6 +18,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
@@ -29,13 +31,17 @@ import de.drick.compose.permission.checkPermission
 import de.drick.compose.permission.rememberBluetoothState
 import de.drick.compose.permission.rememberPermissionState
 import de.drick.log
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.immutableListOf
+import kotlinx.collections.immutable.persistentListOf
 import java.util.UUID
 
 
 @Preview(showBackground = true)
 @Composable
 private fun PreviewBluetoothScanner() {
-    val mockList = listOf(
+    val mockList = persistentListOf(
         BTDeviceInfo("Test 1", "58:cb:52:a5:00:ff", 5),
         BTDeviceInfo(name="-", address="F2:46:D2:22:E8:74", rssi=-93),
         BTDeviceInfo(name="-", address="37:7D:01:AF:98:36", rssi=-96),
@@ -44,7 +50,7 @@ private fun PreviewBluetoothScanner() {
         BTDeviceInfo(name="-", address="4A:B4:5C:B7:D2:38", rssi=-65),
         BTDeviceInfo(name="-", address="7C:64:56:95:A7:0D", rssi=-91),
         BTDeviceInfo(name="-", address="4E:AD:EA:38:42:19", rssi=-96),
-    )
+    ).toMutableStateList()
     BluetoothLEScannerView(
         scanResultList = mockList,
         onDeviceSelected = {}
@@ -72,8 +78,8 @@ fun BluetoothLEScannerScreen(
 
 @Composable
 fun BluetoothLEScannerView(
+    scanResultList: SnapshotStateList<BTDeviceInfo>,
     modifier: Modifier = Modifier,
-    scanResultList: List<BTDeviceInfo>,
     onDeviceSelected: (deviceAddress: String) -> Unit
 ) {
     Column(modifier) {
@@ -113,8 +119,8 @@ private val serviceFilter = ScanFilter.Builder().apply {
 
 @Composable
 fun bluetoothLeScannerEffect(
-    macAddressList: List<String> = emptyList()
-): List<BTDeviceInfo> {
+    macAddressList: PersistentList<String> = persistentListOf()
+): SnapshotStateList<BTDeviceInfo> {
     val bluetoothState = rememberBluetoothState()
     val scanPermission = rememberPermissionState(ManifestPermission.BLUETOOTH_SCAN)
     val ctx = LocalContext.current
