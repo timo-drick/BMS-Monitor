@@ -109,11 +109,8 @@ fun MainScreen(
         }
     }
 
-    BackHandler() {
-        val handeled = vm.back()
-        if (handeled.not()) {
-            onFinish()
-        }
+    BackHandler {
+        vm.back()
     }
     AnimatedContent(
         modifier = modifier,
@@ -121,10 +118,12 @@ fun MainScreen(
         label = "Main screen switch animation"
     ) { screen ->
         when (screen) {
-            Screens.Main -> MainView(
-                markedDevices = vm.markedDevices,
-                onAddDevice = { vm.scanForDevices() },
-                onDeviceSelected = { vm.showDeviceDetails(it.macAddress) }
+            Screens.Finish -> {
+                onFinish()
+            }
+            is Screens.Main -> MainView(
+                markedDevices = screen.markedDevices,
+                onAction = { vm.action(it) },
             )
             Screens.Permission -> PermissionView(
                 isBluetoothEnabled = bluetoothState.isEnabled,
@@ -137,7 +136,7 @@ fun MainScreen(
                 },
             )
             Screens.Scanner -> BluetoothLEScannerScreen(
-                onDeviceSelected = { vm.showDeviceDetails(it) }
+                onDeviceSelected = { vm.action(MainUIAction.ShowDetails(it)) }
             )
             is Screens.BmsDetail -> {
                 val deviceAddress = screen.deviceAddress
@@ -147,14 +146,7 @@ fun MainScreen(
                 BatteryDetailScreen(
                     deviceAddress = deviceAddress,
                     isMarked = isDeviceMarked,
-                    onSave = {
-                        vm.addMarkedDevice(deviceAddress, it)
-                        isDeviceMarked = vm.isDeviceMarked(deviceAddress)
-                             },
-                    onDelete = {
-                        vm.removeMarkedDevice(deviceAddress)
-                        isDeviceMarked = vm.isDeviceMarked(deviceAddress)
-                               },
+                    onAction = { vm.action(it) }
                 )
             }
         }

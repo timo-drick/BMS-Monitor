@@ -34,6 +34,9 @@
         />
     <!-- sdk >= 31 end -->
 
+    <!-- POST_NOTIFICATIONS needed for starting a service for background recordings -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <uses-permission android:name="android.permission.INTERNET" />
 
     <uses-feature android:name="android.hardware.bluetooth" android:required="false"/>

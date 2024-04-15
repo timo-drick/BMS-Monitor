@@ -4,9 +4,11 @@ import android.content.Context
 import de.drick.bmsmonitor.bluetooth.BluetoothLeConnectionService
 import de.drick.bmsmonitor.bms_adapter.jk_bms.JKBmsAdapter
 import de.drick.bmsmonitor.bms_adapter.yy_bms.YYBmsAdapter
+import de.drick.log
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withTimeoutOrNull
 
 
 data class GeneralCellInfo(
@@ -69,8 +71,17 @@ class BmsAdapter(
     val connectionState = service.connectionState
 
     suspend fun connect() {
-        service.connect(deviceAddress)
-        service.discover()
+        val maxRetries = 3
+        var connected = false
+        for (i in 0 until maxRetries) {
+            withTimeoutOrNull(10000) {
+                log("try to connect try: $i")
+                service.connect(deviceAddress)
+                service.discover()
+                connected = true
+            }
+            if (connected) break
+        }
     }
 
     suspend fun start() {
@@ -83,13 +94,5 @@ class BmsAdapter(
 
     fun disconnect() {
         service.disconnect()
-    }
-}
-
-fun stringFromBytes(bytes: ByteArray, offset: Int, maxLength: Int): String = buildString {
-    for (i in 0 until maxLength) {
-        val code = bytes[i + offset].toUShort()
-        if (code == 0.toUShort()) break
-        append(Char(code))
     }
 }

@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.util.UUID
 
 /**
@@ -53,9 +54,7 @@ class BluetoothLeConnectionService(private val ctx: Context) {
         log("Connecting...")
         if (connectAsync(deviceAddress)) {
             //Wait until connected
-            connectionState
-                .filter { it == State.Connected }
-                .first()
+            connectionState.first { it == State.Connected }
             log("Connected")
         }
     }

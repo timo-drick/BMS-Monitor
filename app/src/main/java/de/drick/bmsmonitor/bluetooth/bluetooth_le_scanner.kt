@@ -27,10 +27,7 @@ data class BTDeviceInfo(
     val lastSeen: Long
 )
 
-class BluetoothLeScanner(private val ctx: Context) {
-    private val bluetoothManager = ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-    private val bluetoothLeScanner = bluetoothManager.adapter.bluetoothLeScanner
-
+class ComposeBluetoothLeScanner(private val ctx: Context) {
     companion object {
         private val MAX_LIFESPAN = TimeUnit.SECONDS.toMillis(30)
         private val UPDATE_INTERVAL = TimeUnit.SECONDS.toMillis(5)
@@ -55,21 +52,51 @@ class BluetoothLeScanner(private val ctx: Context) {
             }
         }
     }
-
+    private val bluetoothLeScanner = KBluetoothLeScanner(ctx, onResult = { add(it) })
     val scanResults: SnapshotStateList<BTDeviceInfo> = internalScanResults
+
+    fun start(macAddressList: ImmutableList<String>) {
+        val filterList = macAddressList.map {
+            ScanFilter.Builder().apply {
+                setDeviceAddress(it)
+            }.build()
+        }.toPersistentList()
+        val settings = ScanSettings.Builder()
+            .build()
+        start(filterList, settings)
+    }
+
+    fun start(serviceFilter: UUID) {
+        bluetoothLeScanner.start(serviceFilter)
+    }
+
+    fun start(filterList: ImmutableList<ScanFilter>, settings: ScanSettings) {
+        bluetoothLeScanner.start(filterList, settings)
+    }
+
+    fun stop() {
+        bluetoothLeScanner.stop()
+    }
+}
+
+class KBluetoothLeScanner(
+    private val ctx: Context,
+    onResult: (BTDeviceInfo) -> Unit
+) {
+    private val bluetoothManager = ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+    private val bluetoothLeScanner = bluetoothManager.adapter.bluetoothLeScanner
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val tsNow = System.currentTimeMillis()
             val address = result.device.address
-            val bmsType = DeviceMacPrefix.entries.find { address.startsWith(it.prefix) }
-            log("type: $callbackType, bmsType: $bmsType result: $result")
-            if (bmsType == null) return
+            val bmsType = DeviceMacPrefix.entries.find { address.startsWith(it.prefix) } ?: return
+            //log("type: $callbackType, bmsType: $bmsType result: $result")
             val name = if (ManifestPermission.BLUETOOTH_CONNECT.checkPermission(ctx))
                 result.device.name ?: "-"
             else
                 address
-            add(BTDeviceInfo(name, address, result.rssi, tsNow))
+            onResult(BTDeviceInfo(name, address, result.rssi, tsNow))
         }
     }
 

@@ -56,7 +56,7 @@ enum class JKBmsErrors(val description: String) {
     ERROR_0X020("Error 0x00 0x20"),                       // 0000 0000 0010 0000
     ERROR_0X040("Error 0x00 0x40"),                       // 0000 0000 0100 0000
     ERROR_0X080("Error 0x00 0x80"),                       // 0000 0000 1000 0000
-    ERROR_0X100("Error 0x01 0x00"),                       // 0000 0001 0000 0000
+    ERROR_0X100("Sample-wire resistance too large"),      // 0000 0001 0000 0000
     ERROR_0X200("Error 0x02 0x00"),                       // 0000 0010 0000 0000
     CELL_COUNT("Cell count is not equal to settings"),    // 0000 0100 0000 0000
     CURRENT_SENSOR_ANOMALY("Current sensor anomaly"),     // 0000 1000 0000 0000

@@ -47,3 +47,11 @@ fun crc16Modbus(data: ByteArray, length: Int): Short {
     }
     return crc.toShort()
 }
+
+fun stringFromBytes(bytes: ByteArray, offset: Int, maxLength: Int): String = buildString {
+    for (i in 0 until maxLength) {
+        val code = bytes[i + offset].toUShort()
+        if (code == 0.toUShort()) break
+        append(Char(code))
+    }
+}

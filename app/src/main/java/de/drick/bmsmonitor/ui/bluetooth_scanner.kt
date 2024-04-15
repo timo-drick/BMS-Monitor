@@ -21,7 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import de.drick.bmsmonitor.bluetooth.BTDeviceInfo
-import de.drick.bmsmonitor.bluetooth.BluetoothLeScanner
+import de.drick.bmsmonitor.bluetooth.ComposeBluetoothLeScanner
 import de.drick.bmsmonitor.bms_adapter.BmsAdapter
 import de.drick.compose.permission.ManifestPermission
 import de.drick.compose.permission.checkPermission
@@ -145,7 +145,7 @@ fun bluetoothLeScannerEffect(
     val scanPermission = rememberPermissionState(ManifestPermission.BLUETOOTH_SCAN)
     val ctx = LocalContext.current
     val scanner = remember {
-        BluetoothLeScanner(ctx)
+        ComposeBluetoothLeScanner(ctx)
     }
     LifecycleResumeEffect(bluetoothState.isEnabled, scanPermission.hasPermission) {
         if (ManifestPermission.BLUETOOTH_SCAN.checkPermission(ctx)) {

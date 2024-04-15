@@ -49,8 +49,7 @@ import kotlinx.coroutines.launch
 fun BatteryDetailScreen(
     deviceAddress: String,
     isMarked: Boolean,
-    onSave: (GeneralDeviceInfo) -> Unit,
-    onDelete: () -> Unit
+    onAction: (MainUIAction) -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -80,9 +79,11 @@ fun BatteryDetailScreen(
         isMarked = isMarked,
         onMarkToggle = {
             if (isMarked) {
-                onDelete()
+                onAction(MainUIAction.UnMarkDevice(deviceAddress))
             } else {
-                deviceInfo?.let(onSave)
+                deviceInfo?.let {
+                    onAction(MainUIAction.MarkDevice(deviceAddress, it))
+                }
             }
         }
     )
