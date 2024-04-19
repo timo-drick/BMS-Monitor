@@ -69,7 +69,7 @@ class BluetoothLeConnectionService(private val ctx: Context) {
             log("BLUETOOTH_CONNECT permission not granted")
             return false
         }
-        device.connectGattCompat(ctx, false,CompatTransportType.TRANSPORT_LE, bluetoothGattCallback)
+        device.connectGattCompat(ctx, false, CompatTransportType.TRANSPORT_LE, bluetoothGattCallback)
         return true
     }
 

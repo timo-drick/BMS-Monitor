@@ -78,9 +78,11 @@ class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
 
     private val composeBluetoothLeScanner = KBluetoothLeScanner(ctx, onResult = { result ->
         _markedDevices.indexOfFirst { it.item.macAddress == result.address }.let { index ->
-            val item = _markedDevices[index]
-            log("Scan: $item")
-            _markedDevices[index] = item.copy(btDeviceInfo = result)
+            if (index >= 0) {
+                val item = _markedDevices[index]
+                log("Scan: $item")
+                _markedDevices[index] = item.copy(btDeviceInfo = result)
+            }
         }
     })
 

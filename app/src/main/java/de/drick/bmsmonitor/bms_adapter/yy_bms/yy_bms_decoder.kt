@@ -129,11 +129,11 @@ class YYBmsDecoder {
                 val testBits = byteArray2BooleanArray(buffer[147], buffer[148])
                 val text = testBits.mapIndexed { index, b -> if (b) "$index [1]" else "$index [0]" }
                     .joinToString(" ")
-                //log("Bist: $text")
-                // bit 1 und 6 chraging disabled
-                // bit 0 und 4 discharging disabled
+                //log("Bits: $text")
+                // bit 1 and 6 chraging disabled
+                // bit 0 and 4 discharging disabled
                 val bitsA = byteArray2BooleanArray(buffer[147])
-                val dischargingEnabled = bitsA[0]  // also bit 4 flips when dischraging is disabled
+                val dischargingEnabled = bitsA[0]  // also bit 4 flips when discharging is disabled
                 val chargingEnabled = bitsA[1]     // also bit 6 flips when charging is disabled
 
                 // Calculate highest and lowest cell
