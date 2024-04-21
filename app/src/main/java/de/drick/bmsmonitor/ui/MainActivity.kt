@@ -1,6 +1,5 @@
 package de.drick.bmsmonitor.ui
 
-import android.app.Application
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -15,24 +14,15 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
-import de.drick.bmsmonitor.bms_adapter.GeneralDeviceInfo
-import de.drick.bmsmonitor.repository.BmsRepository
-import de.drick.bmsmonitor.repository.DeviceInfoData
 import de.drick.bmsmonitor.ui.theme.BMSMonitorTheme
 import de.drick.compose.permission.ManifestPermission
 import de.drick.compose.permission.rememberBluetoothState
 import de.drick.compose.permission.rememberPermissionState
-import de.drick.log
-
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -140,8 +130,10 @@ fun MainScreen(
             )
             is Screens.BmsDetail -> {
                 val deviceAddress = screen.deviceAddress
-                var isDeviceMarked by remember(deviceAddress) {
-                    mutableStateOf(vm.isDeviceMarked(deviceAddress))
+                val isDeviceMarked by remember {
+                    derivedStateOf {
+                        vm.markedDevices.firstOrNull { it.item.macAddress == deviceAddress } != null
+                    }
                 }
                 BatteryDetailScreen(
                     deviceAddress = deviceAddress,

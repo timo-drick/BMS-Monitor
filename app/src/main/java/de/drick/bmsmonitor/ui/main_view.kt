@@ -66,8 +66,7 @@ private fun PreviewMainView() {
 
 data class UIDeviceItem(
     val item: DeviceInfoData,
-    val btDeviceInfo: BTDeviceInfo?,
-    val cellInfo: GeneralCellInfo? = null
+    val btDeviceInfo: BTDeviceInfo?
 )
 
 @Composable
@@ -137,24 +136,39 @@ fun SavedDeviceItem(
 ) {
     val isOnline = data.btDeviceInfo != null
     val additionalModifier = if (isOnline) Modifier else Modifier.alpha(0.6f)
+    /*val ctx = LocalContext.current
+    val cellFlow = remember {
+        derivedStateOf {
+            data.btDeviceInfo?.let {
+                MonitorService.getBmsMonitor(ctx, it.address)
+            }
+        }
+    }
+    val cellInfo = cellFlow.value?.collectAsState()
+    */
     Row(
         modifier
             .fillMaxWidth()
             .then(additionalModifier)
             .padding(10.dp)
     ) {
-        val socText = data.cellInfo?.stateOfCharge?.toString() ?: "?"
-        Text("$socText %")
+        /*val socText = cellInfo?.value?.cellInfo?.let {
+            val voltage = it.cellVoltages.sum()
+            "%d%% %.1f v".format(it.stateOfCharge, voltage)
+        } ?: "?"
+        Text(socText)*/
         Spacer(modifier = Modifier.width(20.dp))
         Text(
             text = data.item.name,
             modifier = Modifier.weight(1f, true),
             //color = contentColor
         )
-        Icon(
-            imageVector = Icons.Default.ChevronRight,
-            contentDescription = null,
-        )
+        if (isOnline) {
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+            )
+        }
     }
 }
 

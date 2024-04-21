@@ -8,12 +8,11 @@ import de.drick.bmsmonitor.bms_adapter.GeneralCellInfo
 import de.drick.bmsmonitor.bms_adapter.GeneralDeviceInfo
 import de.drick.log
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterface {
@@ -38,31 +37,29 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
     override suspend fun start() {
         log("start")
         service.subscribeForNotification(serviceUUID, YY_BMS_BLE_RX_CHARACTERISTICS, notificationCallback)
-        coroutineScope {
-            launch(Dispatchers.IO) {
-                running = true
-                service.writeCharacteristic(
-                    serviceUUID,
-                    YY_BMS_BLE_TX_CHARACTERISTICS,
-                    YYBmsDecoder.COMMAND_BMS_INFO_DATA
-                )
-                delay(500)
-                while (isActive && running) {
-                    if (deviceInfoState.value == null) {
-                        service.writeCharacteristic(
-                            serviceUUID,
-                            YY_BMS_BLE_TX_CHARACTERISTICS,
-                            YYBmsDecoder.COMMAND_BMS_INFO_DATA
-                        )
-                        delay(500)
-                    }
+        withContext(Dispatchers.IO) {
+            running = true
+            service.writeCharacteristic(
+                serviceUUID,
+                YY_BMS_BLE_TX_CHARACTERISTICS,
+                YYBmsDecoder.COMMAND_BMS_INFO_DATA
+            )
+            delay(500)
+            while (isActive && running) {
+                if (deviceInfoState.value == null) {
                     service.writeCharacteristic(
                         serviceUUID,
                         YY_BMS_BLE_TX_CHARACTERISTICS,
-                        YYBmsDecoder.COMMAND_CELL_DATA
+                        YYBmsDecoder.COMMAND_BMS_INFO_DATA
                     )
-                    delay(1000)
+                    delay(500)
                 }
+                service.writeCharacteristic(
+                    serviceUUID,
+                    YY_BMS_BLE_TX_CHARACTERISTICS,
+                    YYBmsDecoder.COMMAND_CELL_DATA
+                )
+                delay(1000)
             }
         }
         log("Start finished")

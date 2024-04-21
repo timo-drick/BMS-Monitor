@@ -45,7 +45,7 @@ sealed interface MainUIAction {
     data object StopMarkedScan: MainUIAction
 }
 
-class BmsProbeService(private val ctx: Context) {
+/*class BmsProbeService(private val ctx: Context) {
     suspend fun probe(macAddressList: List<String>): List<Pair<String, GeneralCellInfo>> =
         coroutineScope {
             macAddressList.mapNotNull { macAddress ->
@@ -70,7 +70,7 @@ class BmsProbeService(private val ctx: Context) {
                 }
             }
         }
-}
+}*/
 
 class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
     private val bmsRepository = BmsRepository(ctx)
@@ -86,7 +86,7 @@ class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
         }
     })
 
-    val bmsProbeService = BmsProbeService(ctx)
+    //val bmsProbeService = BmsProbeService(ctx)
 
     private val _markedDevices = mutableStateListOf<UIDeviceItem>()
     val markedDevices: SnapshotStateList<UIDeviceItem> = _markedDevices
@@ -94,7 +94,7 @@ class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
     var currentScreen: Screens by mutableStateOf(Screens.Main(markedDevices))
         private set
 
-    private var bmsProbeJob: Job? = null
+    //private var bmsProbeJob: Job? = null
 
     init {
         updateMarkedDevices()
@@ -103,7 +103,7 @@ class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
     private fun startScanning() {
         log("Start scanning")
         composeBluetoothLeScanner.start(markedDevices.map { it.item.macAddress }.toPersistentList())
-        bmsProbeJob?.cancel()
+        /*bmsProbeJob?.cancel()
         if (liveData) {
             bmsProbeJob = viewModelScope.launch {
                 while (isActive) {
@@ -122,17 +122,13 @@ class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
                     delay(5000)
                 }
             }
-        }
+        }*/
     }
 
     private fun stopScanning() {
         log("stop scanning")
         composeBluetoothLeScanner.stop()
-        bmsProbeJob?.cancel()
-        /*viewModelScope.launch {
-            testConnection.stop()
-            testConnection.disconnect()
-        }*/
+        //bmsProbeJob?.cancel()
     }
 
     fun isDeviceMarked(macAddress: String) = markedDevices.find { it.item.macAddress == macAddress  } != null

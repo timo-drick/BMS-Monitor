@@ -177,6 +177,7 @@ class BluetoothLeConnectionService(private val ctx: Context) {
                     log("Disconnected")
                     _connectionState.value = State.Disconnected
                     connectedGatt = null
+                    discoveryResult.value = null
                 }
                 BluetoothProfile.STATE_CONNECTING -> {
                     log("Connecting...")

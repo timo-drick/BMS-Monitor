@@ -68,9 +68,6 @@ enum class JKBmsErrors(val description: String) {
 
 class JKBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterface {
     companion object {
-        //private val serviceUUID = 0xFFE0
-        //private val characteristicNotificationUUID = 0xFFE1
-        //private val characteristicWriteCommandUUID = 0xFFE1
         val serviceUUID =
             checkNotNull(UUID.fromString("0000ffe0-0000-1000-8000-00805f9b34fb"))
         private val characteristicNotificationUUID =

@@ -11,6 +11,8 @@ import java.nio.ByteOrder
  */
 
 class JkBmsDecoder() {
+    private val frameBuffer = FrameBuffer()
+
     enum class Command(
         val code: Byte
     ) {
@@ -198,7 +200,7 @@ class JkBmsDecoder() {
     }
 }
 
-class FrameBuffer() {
+class FrameBuffer {
     private val frameBuffer = mutableListOf<ByteArray>()
     val size get() = frameBuffer.sumOf { it.size }
     fun insert(data: ByteArray) {
@@ -216,6 +218,5 @@ class FrameBuffer() {
         return data
     }
 }
-val frameBuffer = FrameBuffer()
 const val MIN_RESPONSE_SIZE = 300
 const val MAX_RESPONSE_SIZE = 320

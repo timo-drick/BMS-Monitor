@@ -128,6 +128,7 @@ fun bluetoothLeScannerServiceEffect(
     serviceFilter: ImmutableSet<UUID>
 ) : SnapshotStateList<BTDeviceInfo> {
     val settings = ScanSettings.Builder()
+        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
         .build()
     val filter = ScanFilter.Builder().apply {
         serviceFilter.forEach {

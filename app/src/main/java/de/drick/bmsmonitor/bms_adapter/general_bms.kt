@@ -7,7 +7,9 @@ import de.drick.bmsmonitor.bms_adapter.yy_bms.YYBmsAdapter
 import de.drick.log
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableSet
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withTimeoutOrNull
 
 
@@ -16,7 +18,7 @@ data class GeneralCellInfo(
     val maxCapacity: Float, // in Ah
     val current: Float, // in A
     val cellVoltages: FloatArray, // cell voltages in V
-    val cellBalance: BooleanArray,// cell which are getting balanced
+    val cellBalance: BooleanArray,// cells which are getting balanced
     val cellMinIndex: Int,
     val cellMaxIndex: Int,
     val cellDelta: Float,
@@ -46,6 +48,12 @@ interface BmsInterface {
     val deviceInfoState: StateFlow<GeneralDeviceInfo?>
 }
 
+data class BmsInfo(
+    val state: BluetoothLeConnectionService.State,
+    val deviceInfo: GeneralDeviceInfo?,
+    val cellInfo: GeneralCellInfo?
+)
+
 class BmsAdapter(
     ctx: Context,
     private val deviceAddress: String
@@ -66,9 +74,13 @@ class BmsAdapter(
         else -> JKBmsAdapter(service)
     }
 
-    val cellInfoState: StateFlow<GeneralCellInfo?> = bmsAdapter.cellInfoState
-    val deviceInfoState: StateFlow<GeneralDeviceInfo?> = bmsAdapter.deviceInfoState
-    val connectionState = service.connectionState
+    val bmsInfo: Flow<BmsInfo> = combine(
+        flow = service.connectionState,
+        flow2 = bmsAdapter.deviceInfoState,
+        flow3 = bmsAdapter.cellInfoState
+    ) { flow, flow2, flow3 ->
+        BmsInfo(flow, flow2, flow3)
+    }
 
     suspend fun connect() {
         val maxRetries = 3
