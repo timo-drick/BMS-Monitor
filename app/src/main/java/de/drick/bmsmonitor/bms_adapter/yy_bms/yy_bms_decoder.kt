@@ -47,7 +47,7 @@ class YYBmsDecoder {
             log("Checksum error! calculated: $crcCalculated expected: $crcExpected")
             return null
         }
-        log(hex)
+        //log(hex)
         when (hex.substring(0, prefix1.length)) {
             prefix1 -> {
                 //log(hex)
@@ -60,6 +60,10 @@ class YYBmsDecoder {
             prefixBmsInfoData -> {
                 //log(hex)
                 val ascii = data.map { Char(it.toUByte().toInt()) }
+                val serialnumber = data.toHexString(5, 5 + 8)
+                //log("Serial number: $serialnumber")
+                //Offset 13
+
                 val modelTypeName = stringFromBytes(data, 41, 36)
                 val bluetoothName = stringFromBytes(data, 83, 12)
                 val pin = stringFromBytes(data, 95, 4)
@@ -71,6 +75,8 @@ class YYBmsDecoder {
                 val seconds = buffer[136].toInt()
                 //log("$modelTypeName - $year.$month.$day $hour:$minutes:$seconds")
                 //log("$bluetoothName pin: $pin cells: $cells")
+                // offset = 136
+
                 val cells = buffer[151].toUByte().toInt()
                 //log("Cells: $cells")
                 cellCount = cells
@@ -102,7 +108,9 @@ class YYBmsDecoder {
                     currentSign * currentRaw.toFloat() * 0.014f // Not exactly the same like in the old app
                 //But closer to the real value
                 //log ("Current: ${"%.2f".format(current)}")
-
+                val tmpMos = buffer[68].toUByte().toInt() - 40
+                val tmp1 = buffer[69].toUByte().toInt() - 40
+                val tmp2 = buffer[70].toUByte().toInt() - 40
 
                 val capacity1 = buffer.getShort(79).toFloat() / 10f
                 val capacity2 = buffer.getShort(81).toFloat() / 10f
@@ -161,9 +169,9 @@ class YYBmsDecoder {
                     errorList = emptyList(), //TODO,
                     chargingEnabled = chargingEnabled,
                     dischargingEnabled = dischargingEnabled,
-                    temp0 = 0f,  //TODO
-                    temp1 = 0f,  //TODO
-                    tempMos = 0f //TODO
+                    temp0 = tmp1.toFloat(),
+                    temp1 = tmp2.toFloat(),
+                    tempMos = tmpMos.toFloat()
                 )
             }
 
