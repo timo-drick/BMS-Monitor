@@ -1,29 +1,19 @@
 package de.drick.bmsmonitor.ui
 
 import android.app.Application
-import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
+import de.drick.bmsmonitor.BackgroundRecordingService
 import de.drick.bmsmonitor.bluetooth.KBluetoothLeScanner
-import de.drick.bmsmonitor.bms_adapter.BmsAdapter
-import de.drick.bmsmonitor.bms_adapter.GeneralCellInfo
 import de.drick.bmsmonitor.bms_adapter.GeneralDeviceInfo
 import de.drick.bmsmonitor.repository.BmsRepository
 import de.drick.bmsmonitor.repository.DeviceInfoData
 import de.drick.log
 import kotlinx.collections.immutable.toPersistentList
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 
 sealed interface Screens {
     data class Main(
@@ -38,41 +28,15 @@ sealed interface Screens {
 sealed interface MainUIAction {
     data object GoBack: MainUIAction
     data object ShowScan: MainUIAction
+    data object StartMarkedScan: MainUIAction
+    data object StopMarkedScan: MainUIAction
     data class ShowDetails(val deviceAddress: String): MainUIAction
     data class MarkDevice(val macAddress: String, val deviceInfo: GeneralDeviceInfo): MainUIAction
     data class UnMarkDevice(val macAddress: String): MainUIAction
-    data object StartMarkedScan: MainUIAction
-    data object StopMarkedScan: MainUIAction
+    data class ToggleRecording(val macAddress: String): MainUIAction
 }
 
-/*class BmsProbeService(private val ctx: Context) {
-    suspend fun probe(macAddressList: List<String>): List<Pair<String, GeneralCellInfo>> =
-        coroutineScope {
-            macAddressList.mapNotNull { macAddress ->
-                val bmsAdapter = BmsAdapter(ctx, macAddress)
-                log("Connect: $macAddress")
-                bmsAdapter.connect()
-                log("Connected")
-                launch {
-                    bmsAdapter.start()
-                }
-                log("Started")
-                //TODO timeout
-                log("Wait for first cell info")
-                val cellInfo = bmsAdapter.cellInfoState.filterNotNull().first()
-                log("cell info: $cellInfo")
-                bmsAdapter.stop()
-                bmsAdapter.disconnect()
-                if (cellInfo != null) {
-                    Pair(macAddress, cellInfo)
-                } else {
-                    null
-                }
-            }
-        }
-}*/
-
-class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
+class MainViewModel(private val ctx: Application): AndroidViewModel(ctx) {
     private val bmsRepository = BmsRepository(ctx)
     private val liveData = false
 
@@ -94,6 +58,8 @@ class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
     var currentScreen: Screens by mutableStateOf(Screens.Main(markedDevices))
         private set
 
+    var isRecording = BackgroundRecordingService.isRunningFlow
+
     //private var bmsProbeJob: Job? = null
 
     init {
@@ -103,35 +69,12 @@ class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
     private fun startScanning() {
         log("Start scanning")
         composeBluetoothLeScanner.start(markedDevices.map { it.item.macAddress }.toPersistentList())
-        /*bmsProbeJob?.cancel()
-        if (liveData) {
-            bmsProbeJob = viewModelScope.launch {
-                while (isActive) {
-                    val devices = markedDevices.mapNotNull { it.btDeviceInfo?.address }
-                    log("probe all scanned bmses: ${devices.joinToString()}")
-                    val cellInfoList = bmsProbeService.probe(devices)
-                    log("probe finished")
-                    cellInfoList.forEach { (macAddress, cellInfo) ->
-                        _markedDevices.indexOfFirst { it.item.macAddress == macAddress }
-                            .let { index ->
-                                val item = _markedDevices[index]
-                                log("insert cell info")
-                                _markedDevices[index] = item.copy(cellInfo = cellInfo)
-                            }
-                    }
-                    delay(5000)
-                }
-            }
-        }*/
     }
 
     private fun stopScanning() {
         log("stop scanning")
         composeBluetoothLeScanner.stop()
-        //bmsProbeJob?.cancel()
     }
-
-    fun isDeviceMarked(macAddress: String) = markedDevices.find { it.item.macAddress == macAddress  } != null
 
     fun requestPermissions() {
         currentScreen = Screens.Permission
@@ -157,6 +100,16 @@ class MainViewModel(ctx: Application): AndroidViewModel(ctx) {
             is MainUIAction.UnMarkDevice -> removeMarkedDevice(action.macAddress)
             MainUIAction.StartMarkedScan -> startScanning()
             MainUIAction.StopMarkedScan -> stopScanning()
+            is MainUIAction.ToggleRecording -> toggleRecording(action.macAddress)
+        }
+    }
+
+    private fun toggleRecording(deviceAddress: String) {
+        log("Toggle recording: $deviceAddress")
+        if (BackgroundRecordingService.isRunningFlow.value) {
+            BackgroundRecordingService.stop(ctx, deviceAddress)
+        } else {
+            BackgroundRecordingService.start(ctx, deviceAddress)
         }
     }
 

@@ -32,7 +32,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import de.drick.bmsmonitor.bluetooth.BTDeviceInfo
-import de.drick.bmsmonitor.bms_adapter.GeneralCellInfo
 import de.drick.bmsmonitor.repository.DeviceInfoData
 import de.drick.bmsmonitor.ui.theme.BMSMonitorTheme
 
@@ -136,7 +135,8 @@ fun SavedDeviceItem(
 ) {
     val isOnline = data.btDeviceInfo != null
     val additionalModifier = if (isOnline) Modifier else Modifier.alpha(0.6f)
-    /*val ctx = LocalContext.current
+    /*
+    val ctx = LocalContext.current
     val cellFlow = remember {
         derivedStateOf {
             data.btDeviceInfo?.let {
@@ -152,11 +152,6 @@ fun SavedDeviceItem(
             .then(additionalModifier)
             .padding(10.dp)
     ) {
-        /*val socText = cellInfo?.value?.cellInfo?.let {
-            val voltage = it.cellVoltages.sum()
-            "%d%% %.1f v".format(it.stateOfCharge, voltage)
-        } ?: "?"
-        Text(socText)*/
         Spacer(modifier = Modifier.width(20.dp))
         Text(
             text = data.item.name,
@@ -164,6 +159,13 @@ fun SavedDeviceItem(
             //color = contentColor
         )
         if (isOnline) {
+            /*val socText = remember(cellInfo?.value) {
+                cellInfo?.value?.cellInfo?.let {
+                    val voltage = it.cellVoltages.sum()
+                    "%d%% %.1f v".format(it.stateOfCharge, voltage)
+                } ?: "?"
+            }
+            Text(socText)*/
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,

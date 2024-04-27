@@ -1,8 +1,7 @@
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    //id("com.google.devtools.ksp") used for room
-    kotlin("plugin.serialization")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -53,20 +52,15 @@ android {
 
 dependencies {
 
-    //implementation(libs.androidx.room.runtime)
-    //annotationProcessor(libs.androidx.room.compiler)
-    //ksp(libs.androidx.room.compiler)
-    // optional - Kotlin Extensions and Coroutines support for Room
-    //implementation(libs.room.ktx)
-    //implementation(libs.ser)
     implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.kotlinx.collections.immutable)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.activity.compose)
     lintChecks(libs.compose.lint.checks) // https://slackhq.github.io/compose-lints
     implementation(platform(libs.androidx.compose.bom))

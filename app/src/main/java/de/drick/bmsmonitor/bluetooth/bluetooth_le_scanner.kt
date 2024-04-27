@@ -16,6 +16,10 @@ import de.drick.log
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -76,6 +80,34 @@ class ComposeBluetoothLeScanner(private val ctx: Context) {
 
     fun stop() {
         bluetoothLeScanner.stop()
+    }
+}
+
+fun bluetoothLeScannerFlow(
+    ctx: Context
+): Flow<ScanResult> {
+    val bluetoothManager = ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+    val bluetoothLeScanner = bluetoothManager.adapter.bluetoothLeScanner
+
+    return callbackFlow {
+        val scanCallback = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                trySendBlocking(result)
+            }
+        }
+        if (ManifestPermission.BLUETOOTH_SCAN.checkPermission(ctx)) {
+            log("Start scanning")
+            val settings = ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .build()
+            bluetoothLeScanner.startScan(null, settings, scanCallback)
+        }
+        awaitClose {
+            if (ManifestPermission.BLUETOOTH_SCAN.checkPermission(ctx)) {
+                log("Start scanning")
+                bluetoothLeScanner.stopScan(scanCallback)
+            }
+        }
     }
 }
 

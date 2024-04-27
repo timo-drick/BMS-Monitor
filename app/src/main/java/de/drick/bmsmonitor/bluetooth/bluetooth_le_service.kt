@@ -23,7 +23,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import java.util.UUID
 
 /**
@@ -210,21 +209,21 @@ class BluetoothLeConnectionService(private val ctx: Context) {
             }
         }
 
-        override fun onCharacteristicWrite(
+        /*override fun onCharacteristicWrite(
             gatt: BluetoothGatt?,
             characteristic: BluetoothGattCharacteristic?,
             status: Int
         ) {
             log("onWrite: $status")
-        }
+        }*/
 
-        override fun onDescriptorWrite(
+        /*override fun onDescriptorWrite(
             gatt: BluetoothGatt?,
             descriptor: BluetoothGattDescriptor?,
             status: Int
         ) {
             log("descriptor write status: $status")
-        }
+        }*/
 
         override fun onDescriptorRead(
             gatt: BluetoothGatt,

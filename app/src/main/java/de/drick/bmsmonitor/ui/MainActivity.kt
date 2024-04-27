@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -135,26 +136,15 @@ fun MainScreen(
                         vm.markedDevices.firstOrNull { it.item.macAddress == deviceAddress } != null
                     }
                 }
+                val isRecording by vm.isRecording.collectAsState()
+
                 BatteryDetailScreen(
                     deviceAddress = deviceAddress,
                     isMarked = isDeviceMarked,
+                    isRecording = isRecording,
                     onAction = { vm.action(it) }
                 )
             }
         }
     }
 }
-
-
-/*@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    BMSMonitorTheme {
-        MainView(
-            isBluetoothEnabled = true,
-            hasScanPermission = false,
-            onEnableBluetooth = {},
-            onRequestPermission = {}
-        )
-    }
-}*/

@@ -157,6 +157,7 @@ class YYBmsDecoder {
                 }
 
                 return GeneralCellInfo(
+                    deviceInfo = null,
                     stateOfCharge = soc,
                     maxCapacity = capacity1,
                     current = current,

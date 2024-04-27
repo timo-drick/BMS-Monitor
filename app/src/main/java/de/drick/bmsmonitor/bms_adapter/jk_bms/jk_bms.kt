@@ -5,8 +5,8 @@ import de.drick.bmsmonitor.bms_adapter.BmsInterface
 import de.drick.bmsmonitor.bms_adapter.GeneralCellInfo
 import de.drick.bmsmonitor.bms_adapter.GeneralDeviceInfo
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import java.util.UUID
 
 sealed interface JKBmsEvent {
@@ -74,13 +74,12 @@ class JKBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
             checkNotNull(UUID.fromString("0000ffe1-0000-1000-8000-00805f9b34fb"))
         private val characteristicWriteCommandUUID = characteristicNotificationUUID
     }
-    private val _cellInfoFlow = MutableStateFlow<GeneralCellInfo?>(null)
-    override val cellInfoState: StateFlow<GeneralCellInfo?> = _cellInfoFlow
-    private val _deviceInfoFlow = MutableStateFlow<GeneralDeviceInfo?>(null)
-    override val deviceInfoState: StateFlow<GeneralDeviceInfo?> = _deviceInfoFlow
+    private val _eventFlow = MutableSharedFlow<GeneralCellInfo>(replay = 1)
+    override val bmsEventFlow = _eventFlow.asSharedFlow()
+    private val _rawFlow = MutableSharedFlow<ByteArray>(replay = 1)
+    override val bmsRawFlow = _rawFlow.asSharedFlow()
 
     private val decoder = JkBmsDecoder()
-
 
     override suspend fun start() {
         service.subscribeForNotification(serviceUUID, characteristicNotificationUUID, notificationCallback)
@@ -94,16 +93,19 @@ class JKBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
         service.unSubscribeForNotification(serviceUUID, characteristicNotificationUUID)
     }
 
+    private var lastDeviceInfo: GeneralDeviceInfo? = null
+
     private val notificationCallback: (ByteArray) -> Unit = { data: ByteArray ->
         when (val event = decoder.addData(data)) {
             is JKBmsEvent.DeviceInfo -> {
-                _deviceInfoFlow.value = GeneralDeviceInfo(
+                lastDeviceInfo = GeneralDeviceInfo(
                     name = event.name,
                     longName = event.longName
                 )
             }
             is JKBmsEvent.CellInfo -> {
-                _cellInfoFlow.value = GeneralCellInfo(
+                val event = GeneralCellInfo(
+                    deviceInfo = lastDeviceInfo,
                     stateOfCharge = event.soc,
                     maxCapacity = event.capacity,
                     current = event.current,
@@ -120,9 +122,13 @@ class JKBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
                     temp1 = event.temp1,
                     tempMos = event.tempMos
                 )
+                _eventFlow.tryEmit(event)
             }
-            else -> {}
+            null -> {
+                //No data available
+            }
         }
+        _rawFlow.tryEmit(data)
     }
 
     private fun writeCommand(command: JkBmsDecoder.Command) {

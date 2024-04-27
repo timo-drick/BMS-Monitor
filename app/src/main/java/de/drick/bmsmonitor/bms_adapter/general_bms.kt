@@ -4,16 +4,15 @@ import android.content.Context
 import de.drick.bmsmonitor.bluetooth.BluetoothLeConnectionService
 import de.drick.bmsmonitor.bms_adapter.jk_bms.JKBmsAdapter
 import de.drick.bmsmonitor.bms_adapter.yy_bms.YYBmsAdapter
-import de.drick.log
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withTimeoutOrNull
 
 
 data class GeneralCellInfo(
+    val deviceInfo: GeneralDeviceInfo?,
     val stateOfCharge: Int, // in percent
     val maxCapacity: Float, // in Ah
     val current: Float, // in A
@@ -44,13 +43,12 @@ enum class DeviceMacPrefix(val prefix: String) {
 interface BmsInterface {
     suspend fun start()
     suspend fun stop()
-    val cellInfoState: StateFlow<GeneralCellInfo?>
-    val deviceInfoState: StateFlow<GeneralDeviceInfo?>
+    val bmsEventFlow: Flow<GeneralCellInfo>
+    val bmsRawFlow: Flow<ByteArray>
 }
 
 data class BmsInfo(
     val state: BluetoothLeConnectionService.State,
-    val deviceInfo: GeneralDeviceInfo?,
     val cellInfo: GeneralCellInfo?
 )
 
@@ -76,18 +74,18 @@ class BmsAdapter(
 
     val bmsInfo: Flow<BmsInfo> = combine(
         flow = service.connectionState,
-        flow2 = bmsAdapter.deviceInfoState,
-        flow3 = bmsAdapter.cellInfoState
-    ) { flow, flow2, flow3 ->
-        BmsInfo(flow, flow2, flow3)
+        flow2 = bmsAdapter.bmsEventFlow
+    ) { connectionState, event ->
+        BmsInfo(connectionState, event)
     }
+
+    val rawData = bmsAdapter.bmsRawFlow
 
     suspend fun connect() {
         val maxRetries = 3
         var connected = false
         for (i in 0 until maxRetries) {
             withTimeoutOrNull(10000) {
-                log("try to connect try: $i")
                 service.connect(deviceAddress)
                 service.discover()
                 connected = true

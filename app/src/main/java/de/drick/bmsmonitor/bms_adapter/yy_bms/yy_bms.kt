@@ -9,8 +9,9 @@ import de.drick.bmsmonitor.bms_adapter.GeneralDeviceInfo
 import de.drick.log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -27,38 +28,34 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
 
     private val yyBmsDecoder = YYBmsDecoder()
 
-    private val _cellInfoFlow = MutableStateFlow<GeneralCellInfo?>(null)
-    override val cellInfoState: StateFlow<GeneralCellInfo?> = _cellInfoFlow
-    private val _deviceInfoFlow = MutableStateFlow<GeneralDeviceInfo?>(null)
-    override val deviceInfoState: StateFlow<GeneralDeviceInfo?> = _deviceInfoFlow
+    private val _eventFlow = MutableSharedFlow<GeneralCellInfo>(replay = 1)
+    override val bmsEventFlow: Flow<GeneralCellInfo> = _eventFlow
+
+    private val _rawFlow = MutableSharedFlow<ByteArray>(replay = 1)
+    override val bmsRawFlow = _rawFlow.asSharedFlow()
 
     private var running = false
+    private var lastDeviceInfo: GeneralDeviceInfo? = null
 
     override suspend fun start() {
         log("start")
         service.subscribeForNotification(serviceUUID, YY_BMS_BLE_RX_CHARACTERISTICS, notificationCallback)
         withContext(Dispatchers.IO) {
             running = true
-            service.writeCharacteristic(
-                serviceUUID,
-                YY_BMS_BLE_TX_CHARACTERISTICS,
-                YYBmsDecoder.COMMAND_BMS_INFO_DATA
-            )
-            delay(500)
             while (isActive && running) {
-                if (deviceInfoState.value == null) {
+                if (lastDeviceInfo == null) {
                     service.writeCharacteristic(
                         serviceUUID,
                         YY_BMS_BLE_TX_CHARACTERISTICS,
                         YYBmsDecoder.COMMAND_BMS_INFO_DATA
                     )
-                    delay(500)
+                } else {
+                    service.writeCharacteristic(
+                        serviceUUID,
+                        YY_BMS_BLE_TX_CHARACTERISTICS,
+                        YYBmsDecoder.COMMAND_CELL_DATA
+                    )
                 }
-                service.writeCharacteristic(
-                    serviceUUID,
-                    YY_BMS_BLE_TX_CHARACTERISTICS,
-                    YYBmsDecoder.COMMAND_CELL_DATA
-                )
                 delay(1000)
             }
         }
@@ -70,15 +67,15 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
         service.unSubscribeForNotification(serviceUUID, YY_BMS_BLE_RX_CHARACTERISTICS)
     }
 
-    private val notificationCallback = { data: ByteArray ->
-        when(val event = yyBmsDecoder.decodeData(data)) {
-            is GeneralDeviceInfo -> {
-                _deviceInfoFlow.value = event
+    private val notificationCallback: (ByteArray) -> Unit = { data: ByteArray ->
+        yyBmsDecoder.decodeData(data)?.let { event ->
+            if (event is GeneralDeviceInfo) {
+                lastDeviceInfo = event
             }
-            is GeneralCellInfo -> {
-                _cellInfoFlow.value = event
+            if (event is GeneralCellInfo) {
+                _eventFlow.tryEmit(event.copy(deviceInfo = lastDeviceInfo))
             }
         }
+        _rawFlow.tryEmit(data)
     }
-
 }
