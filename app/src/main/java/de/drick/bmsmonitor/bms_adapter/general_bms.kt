@@ -35,9 +35,18 @@ data class GeneralDeviceInfo(
     val longName: String
 )
 
-enum class DeviceMacPrefix(val prefix: String) {
+enum class BmsType(val prefix: String) {
+    UNKNOWN(""),
     YY_BMS("C0:D6:3C"),
-    JK_BMS("C8:47:8C")
+    JK_BMS("C8:47:8C");
+
+    companion object {
+        fun fromMacAddress(address: String) = when {
+            address.startsWith(JK_BMS.prefix) -> JK_BMS
+            address.startsWith(YY_BMS.prefix) -> YY_BMS
+            else -> UNKNOWN
+        }
+    }
 }
 
 interface BmsInterface {
@@ -45,6 +54,8 @@ interface BmsInterface {
     suspend fun stop()
     val bmsEventFlow: Flow<GeneralCellInfo>
     val bmsRawFlow: Flow<ByteArray>
+
+    fun decodeRaw(data: ByteArray): GeneralCellInfo?
 }
 
 data class BmsInfo(
@@ -64,11 +75,12 @@ class BmsAdapter(
             YYBmsAdapter.serviceUUID
         ).toImmutableSet()
     }
+    val bmsType = BmsType.fromMacAddress(deviceAddress)
 
     //private val bmsAdapter = JKBmsAdapter(service)
-    private val bmsAdapter: BmsInterface = when {
-        deviceAddress.startsWith(DeviceMacPrefix.JK_BMS.prefix) -> JKBmsAdapter(service)
-        deviceAddress.startsWith(DeviceMacPrefix.YY_BMS.prefix) -> YYBmsAdapter(service)
+    private val bmsAdapter: BmsInterface = when(bmsType) {
+        BmsType.JK_BMS -> JKBmsAdapter(service)
+        BmsType.YY_BMS -> YYBmsAdapter(service)
         else -> JKBmsAdapter(service)
     }
 
@@ -105,4 +117,6 @@ class BmsAdapter(
     fun disconnect() {
         service.disconnect()
     }
+
+    fun decodeRaw(data: ByteArray): GeneralCellInfo? = bmsAdapter.decodeRaw(data)
 }

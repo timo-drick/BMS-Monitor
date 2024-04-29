@@ -12,10 +12,6 @@
         android:maxSdkVersion="30"
         />
     <uses-permission
-        android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="30"
-        />
-    <uses-permission
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30"
         />
@@ -33,6 +29,9 @@
         tools:targetApi="31"
         />
     <!-- sdk >= 31 end -->
+
+    <!-- used to record location updates -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!-- POST_NOTIFICATIONS needed for starting a service for background recordings -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -58,7 +57,8 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.BMSMonitor">
+            android:theme="@style/Theme.BMSMonitor"
+            android:configChanges="orientation|screenLayout|screenSize|colorMode">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

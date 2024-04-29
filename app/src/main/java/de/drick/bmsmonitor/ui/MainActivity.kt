@@ -47,6 +47,7 @@ fun PermissionView(
     isBluetoothEnabled: Boolean,
     hasScanPermission: Boolean,
     hasConnectPermission: Boolean,
+    hasLocationPermission: Boolean,
     onEnableBluetooth: () -> Unit,
     onRequestPermissions: () -> Unit,
     modifier: Modifier = Modifier
@@ -68,6 +69,11 @@ fun PermissionView(
             hasConnectPermission.not() -> {
                 Button(onClick = onRequestPermissions) {
                     Text("Allow connecting bluetooth devices")
+                }
+            }
+            hasLocationPermission.not() -> {
+                Button(onClick = onRequestPermissions) {
+                    Text("Allow fine location permission to record location")
                 }
             }
             else -> {
@@ -92,8 +98,20 @@ fun MainScreen(
 
     val connectPermission = rememberPermissionState(ManifestPermission.BLUETOOTH_CONNECT)
 
-    LaunchedEffect(bluetoothState.isEnabled, scanPermission.hasPermission, connectPermission.hasPermission) {
-        if (bluetoothState.isEnabled.not() || scanPermission.hasPermission.not() || connectPermission.hasPermission.not()) {
+    val locationPermission = rememberPermissionState(ManifestPermission.ACCESS_FINE_LOCATION)
+    //TODO make sure gps is turned on
+
+    LaunchedEffect(
+        bluetoothState.isEnabled,
+        scanPermission.hasPermission,
+        connectPermission.hasPermission,
+        locationPermission.hasPermission
+    ) {
+        if (bluetoothState.isEnabled.not() ||
+            scanPermission.hasPermission.not() ||
+            connectPermission.hasPermission.not() ||
+            locationPermission.hasPermission.not()
+            ) {
             vm.requestPermissions()
         } else {
             vm.allPermissionsGranted()
@@ -120,10 +138,12 @@ fun MainScreen(
                 isBluetoothEnabled = bluetoothState.isEnabled,
                 hasScanPermission = scanPermission.hasPermission,
                 hasConnectPermission = connectPermission.hasPermission,
+                hasLocationPermission = locationPermission.hasPermission,
                 onEnableBluetooth = { bluetoothState.launchEnableBluetoothRequest() },
                 onRequestPermissions = {
                     scanPermission.launchPermissionRequest()
                     connectPermission.launchPermissionRequest()
+                    locationPermission.launchPermissionRequest()
                 },
             )
             Screens.Scanner -> BluetoothLEScannerScreen(
@@ -145,6 +165,10 @@ fun MainScreen(
                     onAction = { vm.action(it) }
                 )
             }
+            Screens.Recordings -> RecordingsScreen(
+                recordings = vm.recordings,
+                onBack = { vm.action(MainUIAction.GoBack) }
+            )
         }
     }
 }

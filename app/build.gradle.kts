@@ -56,6 +56,13 @@ dependencies {
 
     implementation(libs.kotlinx.collections.immutable)
 
+    implementation(libs.kotlinx.datetime)
+
+    implementation(libs.play.services.location)
+
+    implementation(libs.vico.compose)
+    implementation(libs.vico.compose.m3)
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

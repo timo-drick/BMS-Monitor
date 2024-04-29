@@ -95,7 +95,7 @@ class JKBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
 
     private var lastDeviceInfo: GeneralDeviceInfo? = null
 
-    private val notificationCallback: (ByteArray) -> Unit = { data: ByteArray ->
+    override fun decodeRaw(data: ByteArray): GeneralCellInfo? {
         when (val event = decoder.addData(data)) {
             is JKBmsEvent.DeviceInfo -> {
                 lastDeviceInfo = GeneralDeviceInfo(
@@ -104,7 +104,7 @@ class JKBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
                 )
             }
             is JKBmsEvent.CellInfo -> {
-                val event = GeneralCellInfo(
+                return GeneralCellInfo(
                     deviceInfo = lastDeviceInfo,
                     stateOfCharge = event.soc,
                     maxCapacity = event.capacity,
@@ -122,11 +122,18 @@ class JKBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
                     temp1 = event.temp1,
                     tempMos = event.tempMos
                 )
-                _eventFlow.tryEmit(event)
             }
             null -> {
                 //No data available
             }
+        }
+        return null
+    }
+
+    private val notificationCallback: (ByteArray) -> Unit = { data: ByteArray ->
+        val cellInfo = decodeRaw(data)
+        if (cellInfo != null) {
+            _eventFlow.tryEmit(cellInfo)
         }
         _rawFlow.tryEmit(data)
     }

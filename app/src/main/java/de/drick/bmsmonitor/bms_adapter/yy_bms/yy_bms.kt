@@ -67,14 +67,22 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
         service.unSubscribeForNotification(serviceUUID, YY_BMS_BLE_RX_CHARACTERISTICS)
     }
 
-    private val notificationCallback: (ByteArray) -> Unit = { data: ByteArray ->
+    override fun decodeRaw(data: ByteArray): GeneralCellInfo? {
         yyBmsDecoder.decodeData(data)?.let { event ->
             if (event is GeneralDeviceInfo) {
                 lastDeviceInfo = event
             }
             if (event is GeneralCellInfo) {
-                _eventFlow.tryEmit(event.copy(deviceInfo = lastDeviceInfo))
+                return event.copy(deviceInfo = lastDeviceInfo)
             }
+        }
+        return null
+    }
+
+    private val notificationCallback: (ByteArray) -> Unit = { data: ByteArray ->
+        val cellInfo = decodeRaw(data)
+        if (cellInfo != null) {
+            _eventFlow.tryEmit(cellInfo)
         }
         _rawFlow.tryEmit(data)
     }

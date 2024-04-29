@@ -12,7 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyItemScope
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
@@ -28,6 +29,7 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -68,6 +70,32 @@ data class UIDeviceItem(
     val btDeviceInfo: BTDeviceInfo?
 )
 
+inline fun <T> LazyListScope.itemsIndexedCorner(
+    items: List<T>,
+    noinline key: ((index: Int, item: T) -> Any)? = null,
+    crossinline contentType: (index: Int, item: T) -> Any? = { _, _ -> null },
+    crossinline itemContent: @Composable LazyItemScope.(index: Int, item: T, cornerShape: Shape) -> Unit
+) = items(
+    count = items.size,
+    key = if (key != null) { index: Int -> key(index, items[index]) } else null,
+    contentType = { index -> contentType(index, items[index]) }
+) { index ->
+    val cornerRadius = 8.dp
+    val cornerShape = when (index) {
+        0 -> if (items.size > 1)
+            RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius)
+        else
+            RoundedCornerShape(cornerRadius)
+        items.size - 1 -> RoundedCornerShape(
+            bottomStart = cornerRadius,
+            bottomEnd = cornerRadius
+        )
+        else -> RectangleShape
+    }
+    itemContent(index, items[index], cornerShape)
+}
+
+
 @Composable
 fun MainView(
     markedDevices: SnapshotStateList<UIDeviceItem>,
@@ -86,26 +114,20 @@ fun MainView(
             contentPadding = PaddingValues(8.dp)
         ) {
             item {
-                Button(onClick = {
-                    onAction(MainUIAction.ShowScan)
-                }) {
-                    Text("Add new device")
+                Row {
+                    Button(onClick = { onAction(MainUIAction.ShowRecordings) }) {
+                        Text("Recordings")
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Button(onClick = {
+                        onAction(MainUIAction.ShowScan)
+                    }) {
+                        Text("Add new device")
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
             }
-            itemsIndexed(markedDevices) { index, item ->
-                val cornerRadius = 8.dp
-                val cornerShape = when (index) {
-                    0 -> if (markedDevices.size > 1)
-                        RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius)
-                    else
-                        RoundedCornerShape(cornerRadius)
-                    markedDevices.size - 1 -> RoundedCornerShape(
-                        bottomStart = cornerRadius,
-                        bottomEnd = cornerRadius
-                    )
-                    else -> RectangleShape
-                }
+            itemsIndexedCorner(markedDevices) { index, item, cornerShape ->
                 Surface(
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     shape = cornerShape

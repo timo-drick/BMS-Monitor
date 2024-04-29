@@ -11,12 +11,14 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import de.drick.bmsmonitor.bms_adapter.MonitorService
-import de.drick.bmsmonitor.repository.BinaryRepository
+import de.drick.bmsmonitor.repository.RecordingRepository
 import de.drick.bmsmonitor.ui.MainActivity
 import de.drick.log
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 const val RECORDING_CHANNEL = "RECORDING_CHANNEL_1"
 const val RECORDING_SERVICE_ID = 0xcafebabe.toInt()
@@ -85,11 +87,21 @@ class BackgroundRecordingService: LifecycleService() {
     }
 
     private suspend fun recordData(deviceAddress: String) {
-        val binaryRepository = BinaryRepository(this)
-        val monitor = MonitorService.getMonitor(this, deviceAddress)
-        binaryRepository.startRecording(deviceAddress).use { recorder ->
-            monitor.bmsRawFlow.collect { data ->
-                recorder.add(data)
+        val ctx = this
+        val recordingRepository = RecordingRepository(ctx)
+        val monitor = MonitorService.getMonitor(ctx, deviceAddress)
+        recordingRepository.startRecordingBMS(deviceAddress).use { recorder ->
+            withContext(Dispatchers.IO) {
+                launch {
+                    monitor.bmsRawFlow.collect { data ->
+                        recorder.add(data)
+                    }
+                }
+                launch {
+                    locationFlow(ctx).collect { location ->
+                        recorder.add(location)
+                    }
+                }
             }
         }
     }

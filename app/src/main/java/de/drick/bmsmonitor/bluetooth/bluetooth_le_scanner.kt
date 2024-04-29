@@ -9,7 +9,7 @@ import android.content.Context
 import android.os.ParcelUuid
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import de.drick.bmsmonitor.bms_adapter.DeviceMacPrefix
+import de.drick.bmsmonitor.bms_adapter.BmsType
 import de.drick.compose.permission.ManifestPermission
 import de.drick.compose.permission.checkPermission
 import de.drick.log
@@ -122,7 +122,7 @@ class KBluetoothLeScanner(
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val tsNow = System.currentTimeMillis()
             val address = result.device.address
-            val bmsType = DeviceMacPrefix.entries.find { address.startsWith(it.prefix) } ?: return
+            val bmsType = BmsType.entries.find { address.startsWith(it.prefix) } ?: return
             //log("type: $callbackType, bmsType: $bmsType result: $result")
             val name = if (ManifestPermission.BLUETOOTH_CONNECT.checkPermission(ctx))
                 result.device.name ?: "-"
