@@ -29,8 +29,11 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -43,6 +46,7 @@ import de.drick.bmsmonitor.bms_adapter.BmsInfo
 import de.drick.bmsmonitor.bms_adapter.GeneralCellInfo
 import de.drick.bmsmonitor.bms_adapter.GeneralDeviceInfo
 import de.drick.bmsmonitor.bms_adapter.MonitorService
+import de.drick.bmsmonitor.locationFlow
 
 @Composable
 fun BatteryDetailScreen(
@@ -165,11 +169,20 @@ fun BatteryView(
     onRecordingToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val ctx = LocalContext.current
     val voltageText = remember(cellInfo) {
         val voltage = cellInfo.cellVoltages.sum()
         "%.2f".format(voltage)
     }
     val deviceInfo = cellInfo.deviceInfo
+    var speedText by remember { mutableStateOf("NA") }
+
+    LaunchedEffect(Unit) {
+        locationFlow(ctx).collect {
+            speedText = "%3.0f km/h".format(it.speed / 360f * 1000f)
+        }
+    }
+
     Box(
         modifier = modifier.padding(8.dp)
     ) {
@@ -197,6 +210,16 @@ fun BatteryView(
                 Spacer(Modifier.weight(1f))
                 Text(
                     text = "%.2fA".format(cellInfo.current),
+                    style = MaterialTheme.typography.displayLarge
+                )
+                Spacer(Modifier.weight(1f))
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = speedText,
                     style = MaterialTheme.typography.displayLarge
                 )
                 Spacer(Modifier.weight(1f))

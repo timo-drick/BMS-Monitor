@@ -24,8 +24,9 @@ fun locationFlow(ctx: Context): Flow<Location> = callbackFlow {
     }
     if (ManifestPermission.ACCESS_FINE_LOCATION.checkPermission(ctx)) {
         val locationProvider = LocationServices.getFusedLocationProviderClient(ctx)
-        val request = LocationRequest.Builder(5000)
+        val request = LocationRequest.Builder(1000)
             .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+            .setWaitForAccurateLocation(true)
             .build()
         locationProvider.requestLocationUpdates(request, listener, Looper.getMainLooper())
         awaitClose {
