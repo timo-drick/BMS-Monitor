@@ -84,7 +84,6 @@ private fun PreviewVehicleView() {
         temp1 = 21.1f,
         tempMos = 35.81f
     )
-    val location =
     MaterialTheme {
         VehicleView(
             modifier = Modifier.fillMaxSize(),
@@ -144,19 +143,19 @@ fun VehicleView(
     motionData: MotionData,
     modifier: Modifier = Modifier
 ) {
-    val voltageSum = remember { batteryInfo.cellVoltages.sum() }
+    val voltageSum = remember(batteryInfo) { batteryInfo.cellVoltages.sum() }
     val voltageText = remember(batteryInfo) {
         "%.2f".format(voltageSum)
     }
-    val powerText = remember {
+    val powerText = remember(batteryInfo) {
         "%.0f W".format(voltageSum * batteryInfo.current)
     }
-    val socText = remember(batteryInfo.stateOfCharge) {
+    val socText = remember(batteryInfo) {
         "%3d%%".format(batteryInfo.stateOfCharge)
     }
     val speedText = remember(motionData) {
         motionData.speed?.let {
-            "%4.0f km/h".format(it / 360f * 1000f)
+            "%4.0f km/h".format(it * 3.6f)
         } ?: "  NA km/h"
     }
 
