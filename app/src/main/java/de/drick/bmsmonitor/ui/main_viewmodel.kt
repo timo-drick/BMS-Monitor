@@ -42,7 +42,7 @@ sealed interface MainUIAction {
     data class ShowDetails(val deviceAddress: String): MainUIAction
     data class MarkDevice(val macAddress: String, val deviceInfo: GeneralDeviceInfo): MainUIAction
     data class UnMarkDevice(val macAddress: String): MainUIAction
-    data class ToggleRecording(val macAddress: String): MainUIAction
+    data class ToggleRecording(val macAddress: String, val mode: BatteryViewMode): MainUIAction
 }
 
 class MainViewModel(private val ctx: Application): AndroidViewModel(ctx) {
@@ -114,7 +114,7 @@ class MainViewModel(private val ctx: Application): AndroidViewModel(ctx) {
             is MainUIAction.UnMarkDevice -> removeMarkedDevice(action.macAddress)
             MainUIAction.StartMarkedScan -> startScanning()
             MainUIAction.StopMarkedScan -> stopScanning()
-            is MainUIAction.ToggleRecording -> toggleRecording(action.macAddress)
+            is MainUIAction.ToggleRecording -> toggleRecording(action.macAddress, action.mode)
         }
     }
 
@@ -129,12 +129,12 @@ class MainViewModel(private val ctx: Application): AndroidViewModel(ctx) {
         }
     }
 
-    private fun toggleRecording(deviceAddress: String) {
+    private fun toggleRecording(deviceAddress: String, mode: BatteryViewMode) {
         log("Toggle recording: $deviceAddress")
         if (BackgroundRecordingService.isRunningFlow.value) {
             BackgroundRecordingService.stop(ctx, deviceAddress)
         } else {
-            BackgroundRecordingService.start(ctx, deviceAddress)
+            BackgroundRecordingService.start(ctx, deviceAddress, mode == BatteryViewMode.Vehicle)
         }
     }
 

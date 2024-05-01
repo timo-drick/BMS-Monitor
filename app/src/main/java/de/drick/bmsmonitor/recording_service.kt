@@ -29,14 +29,22 @@ class BackgroundRecordingService: LifecycleService() {
         private val _isRunningFlow = MutableStateFlow(false)
         val isRunningFlow = _isRunningFlow.asStateFlow()
 
-        private fun getIntent(ctx: Context, deviceAddress: String) =
+        private fun getIntent(ctx: Context, deviceAddress: String, recordLocation: Boolean) =
             Intent(ctx, BackgroundRecordingService::class.java).apply {
-                action = deviceAddress
+                putExtra("device_address", deviceAddress)
+                putExtra("record_location", recordLocation)
             }
+        private fun extractIntent(intent: Intent?): Pair<String?, Boolean> = intent?.let {
+            Pair(
+            first = it.getStringExtra("device_address"),
+            second = it.getBooleanExtra("record_location", false)
+            )
+        } ?: Pair(null, false)
 
-        fun start(ctx: Context, deviceAddress: String) {
+
+        fun start(ctx: Context, deviceAddress: String, recordLocation: Boolean) {
             log("Start service")
-            val serviceIntent = getIntent(ctx, deviceAddress)
+            val serviceIntent = getIntent(ctx, deviceAddress, recordLocation)
             if (Build.VERSION.SDK_INT >= 26) {
                 ctx.startForegroundService(serviceIntent)
             } else {
@@ -45,7 +53,7 @@ class BackgroundRecordingService: LifecycleService() {
         }
 
         fun stop(ctx: Context, deviceAddress: String) {
-            ctx.stopService(getIntent(ctx, deviceAddress))
+            ctx.stopService(getIntent(ctx, deviceAddress, false))
         }
     }
 
@@ -76,20 +84,21 @@ class BackgroundRecordingService: LifecycleService() {
         log("Start command received $intent")
         val notification = updateNotification()
         startForeground(RECORDING_SERVICE_ID, notification)
-        val deviceAddress = intent?.action
+        val (deviceAddress, recordLocation) = extractIntent(intent)
         deviceAddress?.let { address ->
             lifecycleScope.launch {
                 log("Start recording...")
-                recordData(address)
+                recordData(address, recordLocation)
             }
         } ?: log("No device address in intent!")
         return START_STICKY
     }
 
-    private suspend fun recordData(deviceAddress: String) {
+    private suspend fun recordData(deviceAddress: String, recordLocation: Boolean) {
         val ctx = this
         val recordingRepository = RecordingRepository(ctx)
         val monitor = MonitorService.getMonitor(ctx, deviceAddress)
+        log("Start recording data location: $recordLocation")
         recordingRepository.startRecordingBMS(deviceAddress).use { recorder ->
             withContext(Dispatchers.IO) {
                 launch {
@@ -97,9 +106,11 @@ class BackgroundRecordingService: LifecycleService() {
                         recorder.add(data)
                     }
                 }
-                launch {
-                    locationFlow(ctx).collect { location ->
-                        recorder.add(location)
+                if (recordLocation) {
+                    launch {
+                        locationFlow(ctx).collect { location ->
+                            recorder.add(location)
+                        }
                     }
                 }
             }

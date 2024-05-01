@@ -21,15 +21,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarOutline
+import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,13 +41,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import de.drick.bmsmonitor.BackgroundRecordingService
 import de.drick.bmsmonitor.bluetooth.BluetoothLeConnectionService
 import de.drick.bmsmonitor.bms_adapter.BmsInfo
 import de.drick.bmsmonitor.bms_adapter.GeneralCellInfo
 import de.drick.bmsmonitor.bms_adapter.GeneralDeviceInfo
 import de.drick.bmsmonitor.bms_adapter.MonitorService
-import de.drick.bmsmonitor.locationFlow
 
 @Composable
 fun BatteryDetailScreen(
@@ -74,13 +73,8 @@ fun BatteryDetailScreen(
                 }
             }
         },
-        onRecordingToggle = {
-            val activity = ctx as Activity
-            if (BackgroundRecordingService.isRunningFlow.value) {
-                BackgroundRecordingService.stop(activity, deviceAddress)
-            } else {
-                BackgroundRecordingService.start(activity, deviceAddress)
-            }
+        onRecordingToggle = { mode ->
+            onAction(MainUIAction.ToggleRecording(deviceAddress, mode))
         }
     )
 }
@@ -92,18 +86,37 @@ fun BatteryViewNullable(
     isMarked: Boolean,
     isRecording: Boolean,
     onMarkToggle: () -> Unit,
-    onRecordingToggle: () -> Unit,
+    onRecordingToggle: (BatteryViewMode) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (cellInfo != null) {
-        BatteryView(
-            modifier = modifier,
-            cellInfo = cellInfo,
-            isMarked = isMarked,
-            isRecording = isRecording,
-            onMarkToggle = onMarkToggle,
-            onRecordingToggle = onRecordingToggle
-        )
+        var mode by remember { mutableStateOf(BatteryViewMode.Detail) }
+        Column {
+            when (mode) {
+                BatteryViewMode.Detail -> BatteryView(
+                    modifier = modifier.weight(1f),
+                    cellInfo = cellInfo,
+                )
+                BatteryViewMode.Vehicle -> VehicleScreen(
+                    modifier = modifier.weight(1f),
+                    batteryInfo = cellInfo,
+                )
+            }
+            BatteryButtonBar(
+                modifier = Modifier,
+                isMarked = isMarked,
+                isRecording = isRecording,
+                mode = mode,
+                onMarkToggle = onMarkToggle,
+                onRecordingToggle = { onRecordingToggle(mode) },
+                onModeToggle = {
+                    mode = when (mode) {
+                        BatteryViewMode.Detail -> BatteryViewMode.Vehicle
+                        BatteryViewMode.Vehicle -> BatteryViewMode.Detail
+                    }
+                }
+            )
+        }
     } else {
         Column(modifier) {
             Text("Connection state: ${connectionState.name}")
@@ -112,8 +125,60 @@ fun BatteryViewNullable(
     }
 }
 
+enum class BatteryViewMode {
+    Detail, Vehicle
+}
 
-@Preview(showBackground = true, device = "spec:parent=pixel_5,orientation=landscape")
+@Composable
+fun BatteryButtonBar(
+    isMarked: Boolean,
+    isRecording: Boolean,
+    mode: BatteryViewMode,
+    onMarkToggle: () -> Unit,
+    onRecordingToggle: () -> Unit,
+    onModeToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier) {
+        Spacer(Modifier.weight(.5f))
+        Button(
+            modifier = Modifier,
+            onClick = onRecordingToggle
+        ) {
+            val text = if (isRecording) { "Stop recording" } else { "Start recording" }
+            Text(text)
+        }
+        Spacer(Modifier.weight(1f))
+        Button(
+            modifier = Modifier,
+            onClick = onMarkToggle
+        ) {
+            val icon = if (isMarked) Icons.Default.Star else Icons.Default.StarOutline
+            Icon(
+                imageVector = icon,
+                contentDescription = "Mark / Unmark device"
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        Button(
+            modifier = Modifier,
+            onClick = onModeToggle
+        ) {
+            val icon = when (mode) {
+                BatteryViewMode.Detail -> Icons.Default.TwoWheeler
+                BatteryViewMode.Vehicle -> Icons.Default.BatteryStd
+            }
+            Icon(
+                imageVector = icon,
+                contentDescription = "Mode switch"
+            )
+        }
+        Spacer(Modifier.weight(.5f))
+    }
+}
+
+
+@Preview(showBackground = true, device = "spec:parent=pixel_5")
 @Composable
 private fun BatteryInfoPreview() {
     val mock = GeneralCellInfo(
@@ -150,243 +215,193 @@ private fun BatteryInfoPreview() {
     )
     BatteryView(
         modifier = Modifier.fillMaxSize(),
-        cellInfo = mock,
-        isMarked = true,
-        isRecording = false,
-        onMarkToggle = {},
-        onRecordingToggle = {}
+        cellInfo = mock
     )
 }
+
 
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BatteryView(
     cellInfo: GeneralCellInfo,
-    isMarked: Boolean,
-    isRecording: Boolean,
-    onMarkToggle: () -> Unit,
-    onRecordingToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val ctx = LocalContext.current
     val voltageText = remember(cellInfo) {
         val voltage = cellInfo.cellVoltages.sum()
         "%.2f".format(voltage)
     }
     val deviceInfo = cellInfo.deviceInfo
-    var speedText by remember { mutableStateOf("NA") }
 
-    LaunchedEffect(Unit) {
-        locationFlow(ctx).collect {
-            speedText = "%3.0f km/h".format(it.speed / 360f * 1000f)
-        }
-    }
-
-    Box(
-        modifier = modifier.padding(8.dp)
+    Column(
+        modifier
+            .padding(8.dp)
+            .verticalScroll(rememberScrollState())
     ) {
-        Column(Modifier.verticalScroll(rememberScrollState())) {
-            Box(Modifier.fillMaxWidth()) {
-                Text(
-                    modifier = Modifier.align(Alignment.Center),
-                    text = deviceInfo?.name ?: "NA",
-                    style = MaterialTheme.typography.headlineLarge
-                )
-            }
+        Box(Modifier.fillMaxWidth()) {
             Text(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                text = deviceInfo?.longName ?: "NA",
-                style = MaterialTheme.typography.bodyMedium
+                modifier = Modifier.align(Alignment.Center),
+                text = deviceInfo?.name ?: "NA",
+                style = MaterialTheme.typography.headlineLarge
             )
-            Row(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = "${voltageText}V",
-                    style = MaterialTheme.typography.displayLarge
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = "%.2fA".format(cellInfo.current),
-                    style = MaterialTheme.typography.displayLarge
-                )
-                Spacer(Modifier.weight(1f))
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = speedText,
-                    style = MaterialTheme.typography.displayLarge
-                )
-                Spacer(Modifier.weight(1f))
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = "SOC: ${cellInfo.stateOfCharge}%",
-                    style = MaterialTheme.typography.displaySmall
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = "C: ${cellInfo.maxCapacity} Ah",
-                    style = MaterialTheme.typography.displaySmall
-                )
-                Spacer(Modifier.weight(1f))
-            }
-            Row(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val chargingText = if (cellInfo.chargingEnabled) "On" else "Off"
-                Text(
-                    text = "Charging: $chargingText",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                val dischargingText = if (cellInfo.dischargingEnabled) "On" else "Off"
-                Text(
-                    text = "Discharging: $dischargingText",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-            if (cellInfo.errorList.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                val errorMessage = remember(cellInfo) {
-                    cellInfo.errorList.joinToString()
-                }
-                Text(
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    text = errorMessage,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    "T1: %.1f°C T2: %.1f°C Mos: %.1f°C".format(
-                        cellInfo.temp0,
-                        cellInfo.temp1,
-                        cellInfo.tempMos
-                    )
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            Text(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                text = "Cell voltages",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Row(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        modifier = Modifier.size(18.dp),
-                        imageVector = Icons.Default.ArrowDownward,
-                        contentDescription = "min"
-                    )
-                    val cellMinIndex = cellInfo.cellMinIndex
-                    val cellMinVoltage = cellInfo.cellVoltages[cellMinIndex]
-                    Text("(%d) %.3f".format(cellMinIndex + 1, cellMinVoltage))
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        modifier = Modifier.size(18.dp),
-                        imageVector = Icons.Default.ArrowUpward,
-                        contentDescription = "max"
-                    )
-                    val cellMaxIndex = cellInfo.cellMaxIndex
-                    val cellMaxVoltage = cellInfo.cellVoltages[cellMaxIndex]
-                    Text("(%d) %.3f".format(cellMaxIndex + 1, cellMaxVoltage))
-                }
-                Text("Δ %.0f mV".format(cellInfo.cellDelta * 1000f))
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "Balancer: ${cellInfo.balanceState}"
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-            FlowRow(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                cellInfo.cellVoltages.forEachIndexed { index, voltage ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            modifier = Modifier
-                                .background(
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    shape = RoundedCornerShape(6.dp)
-                                )
-                                .padding(horizontal = 4.dp, vertical = 2.dp),
-                            text = "%02d".format(index + 1)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        val color = when (index) {
-                            cellInfo.cellMinIndex -> MaterialTheme.colorScheme.inversePrimary
-                            cellInfo.cellMaxIndex -> MaterialTheme.colorScheme.primary
-                            else -> LocalContentColor.current
-                        }
-                        val textModifier = if (cellInfo.cellBalance[index]) {
-                            Modifier
-                                .background(MaterialTheme.colorScheme.secondary)
-                                .padding(4.dp)
-                        } else {
-                            Modifier.padding(4.dp)
-                        }
-                        Text(
-                            modifier = textModifier,
-                            text = "%.3f".format(voltage),
-                            color = color
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(60.dp))
         }
-        Row(Modifier.align(Alignment.BottomStart)) {
-            Spacer(Modifier.weight(.5f))
-            val ctx = LocalContext.current
-            Button(
-                modifier = Modifier,
-                onClick = onRecordingToggle
-            ) {
-                val text = if (isRecording) { "Stop recording" } else { "Start recording" }
-                Text(text)
+        Text(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            text = deviceInfo?.longName ?: "NA",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "${voltageText}V",
+                style = MaterialTheme.typography.displayLarge
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "%.2fA".format(cellInfo.current),
+                style = MaterialTheme.typography.displayLarge
+            )
+            Spacer(Modifier.weight(1f))
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "SOC: ${cellInfo.stateOfCharge}%",
+                style = MaterialTheme.typography.displaySmall
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "C: ${cellInfo.maxCapacity} Ah",
+                style = MaterialTheme.typography.displaySmall
+            )
+            Spacer(Modifier.weight(1f))
+        }
+        Row(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val chargingText = if (cellInfo.chargingEnabled) "On" else "Off"
+            Text(
+                text = "Charging: $chargingText",
+                style = MaterialTheme.typography.bodyLarge
+            )
+            val dischargingText = if (cellInfo.dischargingEnabled) "On" else "Off"
+            Text(
+                text = "Discharging: $dischargingText",
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
+        if (cellInfo.errorList.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            val errorMessage = remember(cellInfo) {
+                cellInfo.errorList.joinToString()
             }
-            Spacer(
-                Modifier
-                    .weight(1f)
-                    .width(12.dp))
-            Button(
-                modifier = Modifier,
-                onClick = onMarkToggle
-            ) {
-                val icon = if (isMarked) Icons.Default.Star else Icons.Default.StarOutline
+            Text(
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                text = errorMessage,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                "T1: %.1f°C T2: %.1f°C Mos: %.1f°C".format(
+                    cellInfo.temp0,
+                    cellInfo.temp1,
+                    cellInfo.tempMos
+                )
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            text = "Cell voltages",
+            style = MaterialTheme.typography.titleMedium
+        )
+        Row(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = icon,
-                    contentDescription = "Mark / Unmark device"
+                    modifier = Modifier.size(18.dp),
+                    imageVector = Icons.Default.ArrowDownward,
+                    contentDescription = "min"
                 )
+                val cellMinIndex = cellInfo.cellMinIndex
+                val cellMinVoltage = cellInfo.cellVoltages[cellMinIndex]
+                Text("(%d) %.3f".format(cellMinIndex + 1, cellMinVoltage))
             }
-            Spacer(Modifier.weight(.5f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    modifier = Modifier.size(18.dp),
+                    imageVector = Icons.Default.ArrowUpward,
+                    contentDescription = "max"
+                )
+                val cellMaxIndex = cellInfo.cellMaxIndex
+                val cellMaxVoltage = cellInfo.cellVoltages[cellMaxIndex]
+                Text("(%d) %.3f".format(cellMaxIndex + 1, cellMaxVoltage))
+            }
+            Text("Δ %.0f mV".format(cellInfo.cellDelta * 1000f))
         }
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Balancer: ${cellInfo.balanceState}"
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        FlowRow(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            cellInfo.cellVoltages.forEachIndexed { index, voltage ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        modifier = Modifier
+                            .background(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = RoundedCornerShape(6.dp)
+                            )
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        text = "%02d".format(index + 1)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    val color = when (index) {
+                        cellInfo.cellMinIndex -> MaterialTheme.colorScheme.inversePrimary
+                        cellInfo.cellMaxIndex -> MaterialTheme.colorScheme.primary
+                        else -> LocalContentColor.current
+                    }
+                    val textModifier = if (cellInfo.cellBalance[index]) {
+                        Modifier
+                            .background(MaterialTheme.colorScheme.secondary)
+                            .padding(4.dp)
+                    } else {
+                        Modifier.padding(4.dp)
+                    }
+                    Text(
+                        modifier = textModifier,
+                        text = "%.3f".format(voltage),
+                        color = color
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(60.dp))
     }
+
 }
 
 @Preview(showBackground = true)
@@ -470,9 +485,9 @@ fun BatteryWidget(
                     imageVector = Icons.Default.ArrowDownward,
                     contentDescription = "min"
                 )
-                val cellMinIndex = batteryInfo.cellMinIndex + 1
+                val cellMinIndex = batteryInfo.cellMinIndex
                 val cellMinVoltage = batteryInfo.cellVoltages[cellMinIndex]
-                Text("($cellMinIndex) %.3f".format(cellMinVoltage))
+                Text("(%d) %.3f".format(cellMinIndex + 1, cellMinVoltage))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -480,9 +495,9 @@ fun BatteryWidget(
                     imageVector = Icons.Default.ArrowUpward,
                     contentDescription = "max"
                 )
-                val cellMaxIndex = batteryInfo.cellMaxIndex + 1
+                val cellMaxIndex = batteryInfo.cellMaxIndex
                 val cellMaxVoltage = batteryInfo.cellVoltages[cellMaxIndex]
-                Text("($cellMaxIndex) %.3f".format(cellMaxVoltage))
+                Text("(%d) %.3f".format(cellMaxIndex + 1, cellMaxVoltage))
             }
             Text("Δ %.0f mV".format( batteryInfo.cellDelta * 1000f))
         }

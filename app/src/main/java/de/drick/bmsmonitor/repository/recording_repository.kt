@@ -194,6 +194,7 @@ class BMSRecorder(rawBmsDataFile: File, locationFile: File, headerData: HeaderDa
     }
 
     fun add(location: Location) {
+        log("Add: $location")
         val point = LocationPoint(
             timeStamp = System.currentTimeMillis(),
             latitude = location.latitude,
