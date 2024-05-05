@@ -55,12 +55,6 @@ private val mockDataFlow = flow<GeneralCellInfo> {
 @Preview(device = "id:pixel_8", showBackground = true)
 @Composable
 private fun PreviewRecordingsMapView() {
-    val speed = MinMaxStartStop(
-        start = 0f,
-        stop = 0f,
-        min = 0f,
-        max = 46f
-    ).format("Speed km/h", "%.1f")
     val data = UIDetailData(
         durationText = "Duration: 20:00",
         distanceText = "Distance: 22.5 km",
