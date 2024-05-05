@@ -21,10 +21,6 @@ import androidx.compose.material.icons.filled.Battery4Bar
 import androidx.compose.material.icons.filled.Battery5Bar
 import androidx.compose.material.icons.filled.Battery6Bar
 import androidx.compose.material.icons.filled.BatteryFull
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarOutline
-import androidx.compose.material.icons.filled.TwoWheeler
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -153,10 +149,15 @@ fun VehicleView(
     val socText = remember(batteryInfo) {
         "%3d%%".format(batteryInfo.stateOfCharge)
     }
+    val isMetric = true
     val speedText = remember(motionData) {
         motionData.speed?.let {
-            "%4.0f km/h".format(it * 3.6f)
-        } ?: "  NA km/h"
+            if (isMetric) {
+                "%4.0f km/h".format(it * 3.6f)
+            } else {
+                "%4.0f mi/h".format(it * 2.23694f)
+            }
+        } ?: "  ------"
     }
 
     Column(

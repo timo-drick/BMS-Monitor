@@ -1,13 +1,16 @@
-package de.drick.bmsmonitor.ui
+package de.drick.bmsmonitor.ui.recordings
 
 import android.os.Build
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import de.drick.bmsmonitor.bms_adapter.BmsType
 import de.drick.bmsmonitor.repository.HeaderData
 import de.drick.bmsmonitor.repository.RecordingInfo
+import de.drick.bmsmonitor.ui.itemsIndexedCorner
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toPersistentList
 import java.io.File
@@ -38,7 +42,7 @@ import kotlin.random.Random
 private val rnd = Random(124123)
 private fun createMockEntry(): RecordingInfo {
     return RecordingInfo(
-        file = File(""),
+        id = "A${rnd.nextInt()}",
         timeStamp = System.currentTimeMillis(),
         name = "Niu Scooter",
         bmsType = BmsType.YY_BMS,
@@ -52,7 +56,7 @@ private fun createMockEntry(): RecordingInfo {
 private fun PreviewRecordingsView() {
     val mockData = listOf(
         RecordingInfo(
-            file = File(""),
+            id = "A",
             timeStamp = System.currentTimeMillis(),
             name = "Niu Scooter",
             bmsType = BmsType.YY_BMS,
@@ -61,7 +65,7 @@ private fun PreviewRecordingsView() {
             voltage = 62.1f
         ),
         RecordingInfo(
-            file = File(""),
+            id = "B",
             timeStamp = System.currentTimeMillis() - 1000L * 60L * 60L * 24L * 1,
             name = "Niu Scooter",
             bmsType = BmsType.YY_BMS,
@@ -73,13 +77,13 @@ private fun PreviewRecordingsView() {
     RecordingsView(recordings = mockData, onSelected = {}, onBack = { })
 }
 
-private val fullDateFormatter: Format = if (Build.VERSION.SDK_INT >= 24) {
+val fullDateFormatter: Format = if (Build.VERSION.SDK_INT >= 24) {
     android.icu.text.SimpleDateFormat.getDateInstance(android.icu.text.SimpleDateFormat.FULL)
 } else {
     java.text.SimpleDateFormat.getDateInstance()
 }
 
-private val fullTimeFormatter: Format = if (Build.VERSION.SDK_INT >= 24) {
+val fullTimeFormatter: Format = if (Build.VERSION.SDK_INT >= 24) {
     android.icu.text.SimpleDateFormat.getTimeInstance(android.icu.text.SimpleDateFormat.MEDIUM)
 } else {
     java.text.SimpleDateFormat.getTimeInstance(java.text.SimpleDateFormat.MEDIUM)
@@ -129,11 +133,15 @@ fun RecordingsView(
         ) {
             groups.forEach { (date, itemList) ->
                 stickyHeader {
-                    Text(
-                        modifier = Modifier.padding(8.dp),
-                        text = date,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
+                    Box(Modifier
+                        .background(MaterialTheme.colorScheme.background.copy(0.6f))
+                        .fillMaxSize()) {
+                        Text(
+                            modifier = Modifier.padding(8.dp),
+                            text = date,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                 }
                 itemsIndexedCorner(itemList) { index, item, cornerShape ->
                     Surface(

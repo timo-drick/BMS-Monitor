@@ -20,6 +20,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mapbox.common.MapboxOptions
+import de.drick.bmsmonitor.BuildConfig
+import de.drick.bmsmonitor.ui.recordings.RecordingsScreen
 import de.drick.bmsmonitor.ui.theme.BMSMonitorTheme
 import de.drick.compose.permission.ManifestPermission
 import de.drick.compose.permission.rememberBluetoothState
@@ -28,6 +31,7 @@ import de.drick.compose.permission.rememberPermissionState
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MapboxOptions.accessToken = BuildConfig.MAPBOX_TOKEN
         setContent {
             BMSMonitorTheme {
                 // A surface container using the 'background' color from the theme

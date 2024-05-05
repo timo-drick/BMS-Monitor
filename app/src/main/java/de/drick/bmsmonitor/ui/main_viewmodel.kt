@@ -122,7 +122,7 @@ class MainViewModel(private val ctx: Application): AndroidViewModel(ctx) {
         viewModelScope.launch(Dispatchers.IO) {
             val updatedRecordingList = recordingRepository.listRecordings()
             log("recordings:")
-            updatedRecordingList.forEach { log("   ${it.name} -> ${it.file}") }
+            updatedRecordingList.forEach { log("   ${it.name} -> ${it.id}") }
             withContext(Dispatchers.Main) {
                 recordings = updatedRecordingList.toPersistentList()
             }

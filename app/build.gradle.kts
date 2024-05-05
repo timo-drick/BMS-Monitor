@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -19,6 +21,16 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        val mapboxToken = System.getenv("MAPBOX_TOKEN") ?:
+        Properties().let { properties ->
+            try {
+                properties.load(rootProject.file("local.properties").bufferedReader())
+                properties.getProperty("MAPBOX_TOKEN")
+            } catch (err: Throwable) {
+                "NO_TOKEN"
+            }
+        }
+        buildConfigField("String", "MAPBOX_TOKEN", """"$mapboxToken"""")
     }
 
     buildTypes {
@@ -39,6 +51,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
@@ -59,6 +72,10 @@ dependencies {
     implementation(libs.kotlinx.datetime)
 
     implementation(libs.play.services.location)
+    // mapbox
+    implementation(libs.mapbox.maps)
+    implementation(libs.mapbox.maps.annotation)
+
 
     implementation(libs.vico.compose)
     implementation(libs.vico.compose.m3)

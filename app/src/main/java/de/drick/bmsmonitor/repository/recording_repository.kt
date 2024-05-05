@@ -31,7 +31,7 @@ data class HeaderData(
 )
 
 data class RecordingInfo(
-    val file: File,
+    val id: String,
     val timeStamp: Long,
     val name: String,
     val bmsType: BmsType,
@@ -74,7 +74,7 @@ data class RecordEntry(
     val time: Long,
     val voltage: Float,
     val current: Float,
-    val soc: Int,
+    val soc: Float,
     val temp: Float
 )
 
@@ -119,7 +119,7 @@ class RecordingRepository(private val ctx: Context) {
             }
         }
         RecordingInfo(
-            file = file,
+            id = file.name,
             timeStamp = timeStamp,
             name = cellInfo?.deviceInfo?.name ?: header.deviceAddress.substring(9),
             bmsType = type,
@@ -129,7 +129,20 @@ class RecordingRepository(private val ctx: Context) {
         )
     }
 
-    fun getDataFlow(file: File): Flow<RecordEntry> = flow {
+    fun getLocationFlow(id: String) = flow {
+        val file = File(pathLocation, id)
+        if (file.exists()) {
+            file.inputStream().use { inputStream ->
+                while (inputStream.available() > 0) {
+                    val data = BinarySerializer.decode(LocationPoint.serializer(), inputStream)
+                    emit(data)
+                }
+            }
+        }
+    }
+
+    fun getDataFlow(id: String): Flow<RecordEntry> = flow {
+        val file = File(path, id)
         file.inputStream().use { inputStream ->
             val header = BinarySerializer.decode(HeaderData.serializer(), inputStream)
             println(header)
@@ -142,7 +155,7 @@ class RecordingRepository(private val ctx: Context) {
                         time = data.timeStamp,
                         voltage = decoded.cellVoltages.sum(),
                         current = decoded.current,
-                        soc = decoded.stateOfCharge,
+                        soc = decoded.stateOfCharge.toFloat(),
                         temp = (decoded.tempMos + decoded.temp0 + decoded.temp1) / 3f
                     )
                     emit(entry)
