@@ -104,8 +104,9 @@ class YYBmsDecoder {
                 //log(bits.joinToString("") { if (it) "1" else "0" })
                 val discharging = byteArray2BooleanArray(buffer[65])[0]
                 val currentSign = 1f //if (discharging) -1f else 1f // not working
-                val current =
-                    currentSign * currentRaw.toFloat() * 0.014f // Not exactly the same like in the old app
+                val voltage = cellVoltage.sum()
+                val current = currentRaw.toFloat() / voltage
+                    //currentSign * currentRaw.toFloat() * 0.014f // Not exactly the same like in the old app
                 //But closer to the real value
                 //log ("Current: ${"%.2f".format(current)}")
                 val tmpMos = buffer[68].toUByte().toInt() - 40
