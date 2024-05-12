@@ -4,6 +4,7 @@ import de.drick.bmsmonitor.bms_adapter.jk_bms.BalanceState
 import de.drick.bmsmonitor.bms_adapter.jk_bms.FrameBuffer
 import de.drick.bmsmonitor.bms_adapter.jk_bms.MAX_RESPONSE_SIZE
 import de.drick.bmsmonitor.bms_adapter.jk_bms.MIN_RESPONSE_SIZE
+import de.drick.bmsmonitor.bms_adapter.yy_bms.YYBmsDecoder
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -46,23 +47,39 @@ val yybmsTestData = """
 private var is32s: Boolean = false
 private val frameBuffer = FrameBuffer()
 
-
-
 @OptIn(ExperimentalStdlibApi::class)
 fun main() {
-    yybmsTestData.split("\n").forEach { hexData ->
+    val decoder = YYBmsDecoder()
+
+    yybmsTestData.split("\n").take(5).forEach { hexData ->
         val data = hexData.hexToByteArray()
         val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
         val lastValue = buffer.getShort(data.size - 2)
 
-        val crc = crc16Modbus(data, data.size - 2).toShort()
+        val decoded = decoder.decodeData(data) as? GeneralCellInfo
+        println()
+        for (i in 0 until 99) {
+            print("%2d ".format(i))
+        }
+        println()
+        println(data.toHexString(HexFormat {
+            bytes {
+                byteSeparator = " "
+            }
+        }))
+        decoded?.let {
+            val current = buffer.getShort(99).toFloat() / 100f
+            println("${decoded.current} A ${decoded.cellVoltages.sum()} V ${decoded.current * decoded.cellVoltages.sum()} W current: $current")
+        }
+        //val crc = crc16Modbus(data, data.size - 2).toShort()
 
-        println("Crc: $crc ${crc.toHexString()}  value: ${data.toHexString(data.size - 2)} short: $lastValue")
+        //println("Crc: $crc ${crc.toHexString()}  value: ${data.toHexString(data.size - 2)} short: $lastValue")
     }
+
     val command = "01030001004f".hexToByteArray()
     //val command = "01030050005045e7"
     val expectedCrc = "55fe"
-    println("${command.toHexString()} -> ${crc16Modbus(command, command.size).toHexString()}")
+    //println("${command.toHexString()} -> ${crc16Modbus(command, command.size).toHexString()}")
 
     //val decoder = JkBmsDecoder()
     //decoder.decode(testData)

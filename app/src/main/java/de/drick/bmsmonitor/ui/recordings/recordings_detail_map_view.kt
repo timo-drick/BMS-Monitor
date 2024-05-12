@@ -13,9 +13,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.HourglassFull
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +49,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
 import kotlin.math.roundToInt
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 
 private val mockDataFlow = flow<GeneralCellInfo> {
@@ -56,10 +64,13 @@ private val mockDataFlow = flow<GeneralCellInfo> {
 @Composable
 private fun PreviewRecordingsMapView() {
     val data = UIDetailData(
-        durationText = "Duration: 20:00",
-        distanceText = "Distance: 22.5 km",
-        maxSpeedText = "Speed: 46 km/h",
-        stateOfChargeText = "Battery 100% - 80% diff -20%",
+        duration = 20.minutes,
+        distanceMeters = 5.4f,
+        maxSpeed = 45.7f,
+        avgSpeed = 21.5f,
+        minPower = -400f,
+        maxPower = 2900f,
+        avgPower = 425f,
         gps = GpsData(
             listOf(
                 GpsRecord(0L, GeoPoint(0.0, 0.0), 0f),
@@ -74,16 +85,19 @@ private fun PreviewRecordingsMapView() {
     MaterialTheme {
         RecordingsMapViewData(
             modifier = Modifier.fillMaxSize(),
-            data = data
+            data = data,
         )
     }
 }
 
 data class UIDetailData(
-    val durationText: String,
-    val distanceText: String,
-    val maxSpeedText: String,
-    val stateOfChargeText: String,
+    val duration: Duration,
+    val distanceMeters: Float,
+    val maxSpeed: Float,
+    val avgSpeed: Float,
+    val minPower: Float,
+    val maxPower: Float,
+    val avgPower: Float,
     val gps: GpsData,
     val bmsRecords: List<RecordEntry>
 )
@@ -107,23 +121,17 @@ fun RecordingsMapView(
             }
         val first = dataList.first()
         val last = dataList.last()
-        val durationSeconds = (last.time - first.time) / 1000
-        val timeText = formatDuration(durationSeconds)
-        val distance = calculatePolylineDistance(gpsList.map { it.position })
-        val maxSpeed = locationList.filter {
-            (it.speedAccuracy ?: 10f) < .3f
-        }.maxOf { it.speed ?: 0f }
-        val avgSpeed = distance / durationSeconds
-        val maxSpeedText = "Speed avg: %.0f km/h max:%.0f km/h".format(avgSpeed * 3.6f, maxSpeed * 3.6f)
-        val socText = "Battery %.0f%% - %.0f%% diff: %.0f%%".format(
-            first.soc, last.soc, last.soc - first.soc
-        )
-
+        val locationSpeed = locationList.filter { (it.speedAccuracy ?: 10f) < .3f }
+            .mapNotNull { it.speed }
+        val powerList = dataList.map { it.voltage * it.current }
         uiDetailData = UIDetailData(
-            durationText = "Duration: $timeText",
-            distanceText = "Distance: %.1f km".format(distance / 1000f),
-            maxSpeedText = maxSpeedText,
-            stateOfChargeText = socText,
+            duration = (last.time - first.time).milliseconds,
+            distanceMeters = calculatePolylineDistance(gpsList.map { it.position }).toFloat(),
+            maxSpeed = locationSpeed.maxOf { it },
+            avgSpeed = locationSpeed.averageOf { it },
+            minPower = powerList.minOf { it },
+            maxPower = powerList.maxOf { it },
+            avgPower = powerList.averageOf { it },
             gps = GpsData(gpsList),
             bmsRecords = dataList
         )
@@ -136,7 +144,6 @@ fun RecordingsMapView(
     }
 }
 
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RecordingsMapViewData(
@@ -144,10 +151,10 @@ fun RecordingsMapViewData(
     modifier: Modifier = Modifier
 ) {
     val playbackState = remember { PlaybackState(data.gps.wayPoints, data.bmsRecords) }
-    LaunchedEffect(Unit) {
-        while (isActive) {
+    LaunchedEffect(playbackState.controlState) {
+        while (isActive && playbackState.controlState == ControlButtonState.PAUSE) {
             playbackState.clock()
-            delay(500)
+            delay(200)
         }
     }
     Column(
@@ -159,20 +166,64 @@ fun RecordingsMapViewData(
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.titleMedium
         )
+        val durationText = remember(data) {
+            data.duration.inWholeSeconds.seconds.toString()
+        }
+        val distanceText = remember(data) {
+            "%.0f km".format(data.distanceMeters / 1000f)
+        }
+        val speedText = remember(data) {
+            "avg: %.0f km/h max: %.0f km/h".format(data.avgSpeed, data.maxSpeed)
+        }
+        val powerText = remember(data) {
+            "min: %.0f W max: %.0f W avg: %.0f".format( data.maxPower * -1f, data.minPower * -1f, data.avgPower * -1f)
+        }
+        val consumption = remember(data) {
+            val wattSecondConsumed = data.avgPower * data.duration.inWholeSeconds * -1f
+            val wattSecondPerMeter = wattSecondConsumed / data.distanceMeters
+            "%.0f Wh %.1f Wh/km".format(wattSecondConsumed / 3600f, wattSecondPerMeter)
+        }
         FlowRow(
             modifier = Modifier.padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(data.durationText)
-            Text(data.distanceText)
-            Text(data.maxSpeedText)
+            Row {
+                Icon(
+                    imageVector = Icons.Default.HourglassFull,
+                    contentDescription = null
+                )
+                Text(durationText)
+            }
+            Row {
+                Icon(
+                    imageVector = Icons.Default.Route,
+                    contentDescription = null
+                )
+                Text(distanceText)
+            }
+            Row {
+                Icon(
+                    imageVector = Icons.Default.Speed,
+                    contentDescription = null
+                )
+                Text(speedText)
+            }
+            Row {
+                Icon(
+                    imageVector = Icons.Default.Bolt,
+                    contentDescription = null
+                )
+                Text(powerText)
+            }
+            Row {
+                Icon(
+                    imageVector = Icons.Default.Bolt,
+                    contentDescription = null
+                )
+                Text(consumption)
+            }
         }
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp)
-        ) {
-            Text(data.stateOfChargeText)
-        }
-
+        
         Text(
             modifier = Modifier.fillMaxWidth(),
             text = "Playback",
@@ -183,9 +234,17 @@ fun RecordingsMapViewData(
             modifier = Modifier.padding(horizontal = 8.dp)
         ) {
             val speedText = remember(playbackState.positionGps.speed) {
-                "Speed: %.0f km/h".format(playbackState.positionGps.speed * 3.6f)
+                "%.0f km/h".format(playbackState.positionGps.speed * 3.6f)
             }
-            Text(speedText)
+            Icon(
+                imageVector = Icons.Default.Speed,
+                contentDescription = null
+            )
+            Text(
+                modifier = Modifier.width(70.dp),
+                text = speedText,
+                textAlign = TextAlign.End
+            )
         }
         val record = playbackState.positionRecord
         Row(
@@ -193,7 +252,7 @@ fun RecordingsMapViewData(
             verticalAlignment = Alignment.CenterVertically
         ) {
             val powerText = remember(record) {
-                "Power: %.0f W".format(record.voltage * record.current)
+                "Power: %.0f W".format(record.voltage * record.current * -1f)
             }
             val socText = "%.0f%%".format(record.soc)
             val socIcon = getSocIcon(record.soc.roundToInt())
@@ -256,6 +315,8 @@ fun PlayerControlBar(
     }
 }
 
+private fun markTime(): Long = System.nanoTime() / 1_000_000L
+
 class PlaybackState(
     private val wayPoints: List<GpsRecord>,
     private val bmsRecords: List<RecordEntry>
@@ -282,7 +343,7 @@ class PlaybackState(
 
     fun clock() {
         if (playing) {
-            val position = System.currentTimeMillis() - clockPlayStartTS
+            val position = markTime() - clockPlayStartTS
             progress = position.toFloat() / duration.toFloat()
             val timePosition = position + startTS
             seekLocation(timePosition)
@@ -291,24 +352,24 @@ class PlaybackState(
                 playing = false
                 controlState = ControlButtonState.REPLAY
             }
-            log("Current play position: $position")
+            //log("Current play position: $position")
         }
     }
 
     fun toggleState() {
         when (controlState) {
             ControlButtonState.PLAY -> {
-                clockPlayStartTS = System.currentTimeMillis() - clockPausePosition
+                clockPlayStartTS = markTime() - clockPausePosition
                 playing = true
                 controlState = ControlButtonState.PAUSE
             }
             ControlButtonState.PAUSE -> {
                 playing = false
-                clockPausePosition = System.currentTimeMillis() - clockPlayStartTS
+                clockPausePosition = markTime() - clockPlayStartTS
                 controlState = ControlButtonState.PLAY
             }
             ControlButtonState.REPLAY -> {
-                clockPlayStartTS = System.currentTimeMillis()
+                clockPlayStartTS = markTime()
                 clockPausePosition = 0L
                 playing = true
                 controlState = ControlButtonState.PAUSE
@@ -320,11 +381,14 @@ class PlaybackState(
     fun seekProgress(progress: Float) {
         val seekPosition = ((stopTS - startTS) * progress).toLong()
         this.progress = progress
-        clockPlayStartTS = System.currentTimeMillis() - seekPosition
+        clockPlayStartTS = markTime() - seekPosition
         clockPausePosition = seekPosition
-        val pos = seekPosition + startTS
-        seekRecord(pos)
-        seekLocation(pos)
+        seekPosition(seekPosition + startTS)
+    }
+
+    fun seekPosition(position: Long) {
+        seekRecord(position)
+        seekLocation(position)
     }
 
     private fun gpsTS(index: Int) = wayPoints[index].timeStamp

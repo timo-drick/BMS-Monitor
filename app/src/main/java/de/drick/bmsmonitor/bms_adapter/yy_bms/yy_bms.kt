@@ -16,6 +16,44 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
+enum class BatteryType {
+    Unknown, TernaryLi, Lfp, Lc
+}
+
+sealed interface YYBmsEvent {
+    data class DeviceInfo(
+        val name: String,
+        val modelName: String,
+        val serialNumber: String,
+        val batteryType: BatteryType,
+        val voltage: Float,
+        val current: Float,
+        val systemRuntime: Int  //Seconds since 1970 unix timestamp
+        ): YYBmsEvent
+    data class CellInfo(
+        val power: Int, //Watt (Not negative so it is absolute value)
+        val cellVoltage: FloatArray,
+        val maxVoltageIndex: Int,
+        val minVoltageIndex: Int,
+        val tempMos: Float,
+        val temp1: Float,
+        val temp2: Float,
+        val ratedCapacity: Float,
+        val factCapacity: Float,
+        val soc: Int,
+        val remainingWh: Int,
+        val cycleCount: Int,
+        val shuntGain: Int,
+        val shuntOffset: Int,
+        val cellBalance: BooleanArray,
+        val enableBalancingVoltage: Float,
+        val enableBalancingDiffVoltage: Float,
+        val enableBalancingDetaVoltage: Float,
+        val chargingEnabled: Boolean,
+        val dischargingEnabled: Boolean,
+    ): YYBmsEvent
+}
+
 class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterface {
     companion object {
         val serviceUUID =
@@ -35,7 +73,7 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
     override val bmsRawFlow = _rawFlow.asSharedFlow()
 
     private var running = false
-    private var lastDeviceInfo: GeneralDeviceInfo? = null
+    private var lastDeviceInfo: YYBmsEvent.DeviceInfo? = null
 
     override suspend fun start() {
         log("start")
@@ -43,20 +81,18 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
         withContext(Dispatchers.IO) {
             running = true
             while (isActive && running) {
-                if (lastDeviceInfo == null) {
-                    service.writeCharacteristic(
-                        serviceUUID,
-                        YY_BMS_BLE_TX_CHARACTERISTICS,
-                        YYBmsDecoder.COMMAND_BMS_INFO_DATA
-                    )
-                } else {
-                    service.writeCharacteristic(
-                        serviceUUID,
-                        YY_BMS_BLE_TX_CHARACTERISTICS,
-                        YYBmsDecoder.COMMAND_CELL_DATA
-                    )
-                }
-                delay(1000)
+                service.writeCharacteristic(
+                    serviceUUID,
+                    YY_BMS_BLE_TX_CHARACTERISTICS,
+                    YYBmsDecoder.COMMAND_BMS_INFO_DATA
+                )
+                delay(500)
+                service.writeCharacteristic(
+                    serviceUUID,
+                    YY_BMS_BLE_TX_CHARACTERISTICS,
+                    YYBmsDecoder.COMMAND_CELL_DATA
+                )
+                delay(500)
             }
         }
         log("Start finished")
@@ -69,11 +105,36 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
 
     override fun decodeRaw(data: ByteArray): GeneralCellInfo? {
         yyBmsDecoder.decodeData(data)?.let { event ->
-            if (event is GeneralDeviceInfo) {
+            if (event is YYBmsEvent.DeviceInfo) {
                 lastDeviceInfo = event
             }
-            if (event is GeneralCellInfo) {
-                return event.copy(deviceInfo = lastDeviceInfo)
+            if (event is YYBmsEvent.CellInfo) {
+                val deviceInfo = lastDeviceInfo?.let {
+                    GeneralDeviceInfo(
+                        name = it.name,
+                        longName = it.modelName
+                    )
+                }
+                val cellDiffVolt = event.cellVoltage[event.maxVoltageIndex] - event.cellVoltage[event.minVoltageIndex]
+                val balanceState = if (event.cellBalance.none()) "Off" else "On"
+                return GeneralCellInfo(
+                    deviceInfo = deviceInfo,
+                    stateOfCharge = event.soc,
+                    maxCapacity = event.ratedCapacity,
+                    current = lastDeviceInfo?.current ?: (event.power.toFloat() / event.cellVoltage.sum()),
+                    cellVoltages = event.cellVoltage,
+                    cellBalance = event.cellBalance,
+                    cellMinIndex = event.minVoltageIndex,
+                    cellMaxIndex = event.maxVoltageIndex,
+                    cellDelta = cellDiffVolt,
+                    balanceState = balanceState,
+                    errorList = emptyList(),
+                    chargingEnabled = event.chargingEnabled,
+                    dischargingEnabled = event.dischargingEnabled,
+                    temp0 = event.temp1,
+                    temp1 = event.temp2,
+                    tempMos = event.tempMos
+                )
             }
         }
         return null

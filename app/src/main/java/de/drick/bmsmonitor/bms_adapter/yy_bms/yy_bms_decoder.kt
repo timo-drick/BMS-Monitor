@@ -1,13 +1,11 @@
 package de.drick.bmsmonitor.bms_adapter.yy_bms
 
-import de.drick.bmsmonitor.bms_adapter.GeneralCellInfo
-import de.drick.bmsmonitor.bms_adapter.GeneralDeviceInfo
 import de.drick.bmsmonitor.bms_adapter.crc16Modbus
 import de.drick.bmsmonitor.bms_adapter.stringFromBytes
 import de.drick.log
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import kotlin.math.abs
+import kotlin.math.min
 
 
 fun byteArray2BooleanArray(vararg bytes: Byte): BooleanArray {
@@ -38,7 +36,11 @@ class YYBmsDecoder {
         val COMMAND_CELL_DATA = "01030050005045e7".hexToByteArray()
     }
 
-    fun decodeData(data: ByteArray): Any? {
+    fun decodeData(data: ByteArray): YYBmsEvent? {
+        if (data.size < 5) {
+            log("Data length to short. Length: ${data.size} bytes.")
+            return null
+        }
         val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
         val hex = data.toHexString()
         val crcCalculated = crc16Modbus(data, data.size - 2)
@@ -59,14 +61,23 @@ class YYBmsDecoder {
 
             prefixBmsInfoData -> {
                 //log(hex)
-                val ascii = data.map { Char(it.toUByte().toInt()) }
                 val serialnumber = data.toHexString(5, 5 + 8)
                 //log("Serial number: $serialnumber")
                 //Offset 13
 
                 val modelTypeName = stringFromBytes(data, 41, 36)
+
+                val hardVersion = buffer.getShort(74 + 3)
+
                 val bluetoothName = stringFromBytes(data, 83, 12)
                 val pin = stringFromBytes(data, 95, 4)
+
+                val tmpNum = buffer[103 + 3] + buffer[104 + 3] + buffer[105 + 3]
+                val mosNum = buffer[104 + 3]
+                val balaNum = buffer[105 + 3]
+                val bootVersion = buffer[122 + 3]
+                val softVersion = buffer[123 + 3]
+
                 val year = buffer[131].toInt() + 2000
                 val month = buffer[132].toInt()
                 val day = buffer[133].toInt()
@@ -77,12 +88,31 @@ class YYBmsDecoder {
                 //log("$bluetoothName pin: $pin cells: $cells")
                 // offset = 136
 
+                val sysRuntime = buffer.getInt(140 + 3)
+                val mcuResetCount = buffer.getShort(144 + 3)
                 val cells = buffer[151].toUByte().toInt()
+                val batType = when(buffer[149 + 3].toInt()) {
+                    0 -> BatteryType.TernaryLi
+                    1 -> BatteryType.Lfp
+                    2 -> BatteryType.Lc
+                    else -> BatteryType.Unknown
+                }
+
                 //log("Cells: $cells")
+
+                val voltage = buffer.getInt(150 + 3).toFloat() / 100f
+                val current = buffer.getInt(154 + 3).toFloat() / -100f
+                //log("Voltage: $voltage Current: $current")
+                //log("Runtime: ${sysRuntime.seconds.toString()}")
                 cellCount = cells
-                return GeneralDeviceInfo(
+                return YYBmsEvent.DeviceInfo(
                     name = bluetoothName,
-                    longName = modelTypeName
+                    modelName = modelTypeName,
+                    serialNumber = serialnumber,
+                    batteryType = batType,
+                    voltage = voltage,
+                    current = current,
+                    systemRuntime = sysRuntime
                 )
             }
 
@@ -90,35 +120,50 @@ class YYBmsDecoder {
                 //log(hex)
 
                 // Offset 3 current 2 byte
-                val currentRaw = buffer.getShort(3)
+                val power = buffer.getShort(3).toInt()
 
                 // Offset 5 cell voltages 24x 2 byte shorts
-                val byteOffset = 5
                 val cellVoltage = FloatArray(cellCount) {
-                    val position = it * 2 + byteOffset
+                    val position = it * 2 + 5
                     buffer.getShort(position).toFloat() / 1000f
                 }
+                val maxVolIndex = min(24, buffer[62+3].toInt())
+                val minVolIndex = min(24, buffer[63+3].toInt())
+
                 // Offset end 53
 
                 //val bits = byteArray2BooleanArray(buffer[65], buffer[66], buffer[67], buffer[68])
                 //log(bits.joinToString("") { if (it) "1" else "0" })
-                val discharging = byteArray2BooleanArray(buffer[65])[0]
-                val currentSign = 1f //if (discharging) -1f else 1f // not working
-                val voltage = cellVoltage.sum()
-                val current = currentRaw.toFloat() / voltage
-                    //currentSign * currentRaw.toFloat() * 0.014f // Not exactly the same like in the old app
+                //val discharging = byteArray2BooleanArray(buffer[65])[0]
+
                 //But closer to the real value
                 //log ("Current: ${"%.2f".format(current)}")
-                val tmpMos = buffer[68].toUByte().toInt() - 40
-                val tmp1 = buffer[69].toUByte().toInt() - 40
-                val tmp2 = buffer[70].toUByte().toInt() - 40
+                val tmpMos = buffer[64+3].toUByte().toInt() - 40
+                val tmp1 = buffer[68].toUByte().toInt() - 40
+                val tmp2 = buffer[69].toUByte().toInt() - 40
 
-                val capacity1 = buffer.getShort(79).toFloat() / 10f
-                val capacity2 = buffer.getShort(81).toFloat() / 10f
+                val ratedCapacity = buffer.getShort(79).toFloat() / 10f //Rated capacity
+                val capacity2 = buffer.getShort(81).toFloat() / 10f //Fact capacity ??
+                val electricityCalibration = capacity2.toDouble() / ratedCapacity.toDouble()
+
                 val soc = buffer[83].toInt()
 
-                //log("Soc: $soc% cap1: $capacity1 Ah $capacity2 Ah cellCount: $cellCount")
+                val remainingWh = buffer.getInt(82+3)
+                val remainingChargeMins = buffer.getShort(86 + 3)
+                val remainingDischargeMins = buffer.getShort(88 + 3)
 
+
+                //log("Soc: $soc% cap1: $capacity1 Ah $capacity2 Ah cellCount: $cellCount")
+                val learnedCapSucCnt = buffer.getShort(90 + 3)
+                val learnedCapacity = buffer.getShort(92 + 3)
+                val learnedCapState = buffer[94 + 3]
+                //log("Remaining wh: $remainingWh  discharge min: $remainingDischargeMins")
+                //log("Learned cap: $learnedCapacity state: $learnedCapState succnt: $learnedCapSucCnt")
+                val cycleCount = buffer[95 + 3].toInt()
+                val reqChrgCurt = buffer[98 + 3]
+                val shuntGain = buffer.getShort(100 + 3).toInt()
+                val shuntOffset = buffer.getShort(102 + 3).toInt()
+                //log("reqChrgCurt: $reqChrgCurt Learned cap: $learnedCapacity shuntGain: $shuntGain offset: $shuntOffset")
 
                 //Balance
                 /**
@@ -130,23 +175,37 @@ class YYBmsDecoder {
                 //val balance = value.asList().subList(120, 124)
                 //log("Balance: ${value[121].toUByte().toString(2)} ${value[122].toUByte().toString(2)} ${value[123].toUByte().toString(2)}")
                 // 01011001 11011111 00000001 0
-
+                val balanceBitsInt = buffer.getInt(118 + 3)
                 val balanceBits = byteArray2BooleanArray(buffer[121], buffer[122], buffer[123])
                 val balancing = balanceBits.find { it } ?: false
                 val balanceState = if (balancing) "Balancing" else "Off"
+                val enBalceVol = buffer.getShort(122 + 3).toFloat() / 100f
+                val enBalceDiffVol = buffer.getShort(124 + 3).toFloat() / 100f
+                val enBalceDetaVol = buffer.getShort(126 + 3).toFloat() / 100f
+                //log("Enable balance voltage: $enBalceVol diff: $enBalceDiffVol deta: $enBalceDetaVol")
+                val staticBal = buffer.getInt(126 + 3)
 
                 val testBits = byteArray2BooleanArray(buffer[147], buffer[148])
                 val text = testBits.mapIndexed { index, b -> if (b) "$index [1]" else "$index [0]" }
                     .joinToString(" ")
                 //log("Bits: $text")
-                // bit 1 and 6 chraging disabled
+
+                // bit 1 and 6 charging disabled
                 // bit 0 and 4 discharging disabled
-                val bitsA = byteArray2BooleanArray(buffer[147])
+                val bitsA = byteArray2BooleanArray(buffer[144 + 3])
                 val dischargingEnabled = bitsA[0]  // also bit 4 flips when discharging is disabled
                 val chargingEnabled = bitsA[1]     // also bit 6 flips when charging is disabled
+                val bitsB = byteArray2BooleanArray(buffer[147 + 3])
+                val chargeState = bitsB[2]
+                val dischargeState = bitsB[3]
+                // charge && discharge false -> idle
+                // charge true -> charging
+                // discharge true -> discharging
+                // both true undefined state
 
+                //log("Charge state: $chargeState dis: $dischargeState")
                 // Calculate highest and lowest cell
-                val (hvIndex, hvValue) = if (cellVoltage.isNotEmpty()) {
+                /*val (hvIndex, hvValue) = if (cellVoltage.isNotEmpty()) {
                     cellVoltage.withIndex().maxBy { (_, v) -> v }
                 } else {
                     IndexedValue(0, 0f)
@@ -155,25 +214,28 @@ class YYBmsDecoder {
                     cellVoltage.withIndex().minBy { (_, v) -> v }
                 } else {
                     IndexedValue(0, 0f)
-                }
-
-                return GeneralCellInfo(
-                    deviceInfo = null,
-                    stateOfCharge = soc,
-                    maxCapacity = capacity1,
-                    current = current,
-                    cellVoltages = cellVoltage,
-                    cellMinIndex = lvIndex,
-                    cellMaxIndex = hvIndex,
-                    cellDelta = abs(lvValue - hvValue),
+                }*/
+                return YYBmsEvent.CellInfo(
+                    power = power,
+                    cellVoltage = cellVoltage,
+                    maxVoltageIndex = maxVolIndex,
+                    minVoltageIndex = minVolIndex,
+                    tempMos = tmpMos.toFloat(),
+                    temp1 = tmp1.toFloat(),
+                    temp2 = tmp2.toFloat(),
+                    ratedCapacity = ratedCapacity,
+                    factCapacity = capacity2,
+                    soc = soc,
+                    remainingWh = remainingWh,
+                    cycleCount = cycleCount,
+                    shuntGain = shuntGain,
+                    shuntOffset = shuntOffset,
                     cellBalance = balanceBits,
-                    balanceState = balanceState,
-                    errorList = emptyList(), //TODO,
+                    enableBalancingVoltage = enBalceVol,
+                    enableBalancingDiffVoltage = enBalceDiffVol,
+                    enableBalancingDetaVoltage = enBalceDetaVol,
                     chargingEnabled = chargingEnabled,
-                    dischargingEnabled = dischargingEnabled,
-                    temp0 = tmp1.toFloat(),
-                    temp1 = tmp2.toFloat(),
-                    tempMos = tmpMos.toFloat()
+                    dischargingEnabled = dischargingEnabled
                 )
             }
 

@@ -66,20 +66,17 @@ android {
 dependencies {
 
     implementation(libs.kotlinx.serialization.json)
-
     implementation(libs.kotlinx.collections.immutable)
-
     implementation(libs.kotlinx.datetime)
 
-    implementation(libs.play.services.location)
-    // mapbox
+    implementation(libs.play.services.location) //Fused location
     implementation(libs.mapbox.maps)
     implementation(libs.mapbox.maps.annotation)
 
-
-    implementation(libs.vico.compose)
+    implementation(libs.vico.compose)    // Chart library
     implementation(libs.vico.compose.m3)
 
+    implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

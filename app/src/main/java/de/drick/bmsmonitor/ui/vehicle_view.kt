@@ -99,6 +99,7 @@ private val batteryIcons = arrayOf(
     Icons.Default.Battery6Bar,
     Icons.Default.BatteryFull
 )
+fun getSocIcon(soc: Float): ImageVector = getSocIcon(soc.roundToInt())
 fun getSocIcon(soc: Int): ImageVector {
     val index = ((batteryIcons.size - 1).toFloat() / 100f) * soc
     return batteryIcons[index.roundToInt()]
@@ -144,7 +145,7 @@ fun VehicleView(
         "%.2f".format(voltageSum)
     }
     val powerText = remember(batteryInfo) {
-        "%.0f W".format(voltageSum * batteryInfo.current)
+        "%.0f W".format(voltageSum * batteryInfo.current * -1f)
     }
     val socText = remember(batteryInfo) {
         "%3d%%".format(batteryInfo.stateOfCharge)

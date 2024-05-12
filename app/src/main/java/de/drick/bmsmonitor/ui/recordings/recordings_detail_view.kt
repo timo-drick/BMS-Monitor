@@ -10,8 +10,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.HourglassFull
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,14 +60,15 @@ import de.drick.bmsmonitor.repository.LocationPoint
 import de.drick.bmsmonitor.repository.RecordEntry
 import de.drick.bmsmonitor.repository.RecordingInfo
 import de.drick.bmsmonitor.repository.RecordingRepository
+import de.drick.bmsmonitor.ui.getSocIcon
 import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
-import java.io.File
+import kotlin.time.Duration.Companion.seconds
 
 
 private val mockDataFlow = flow<GeneralCellInfo> {
@@ -163,15 +169,147 @@ fun RecordingsDetailView(
                         locationList = uiData.locationList
                     )
                 } else {
-                    RecordingsDetailChart(
-                        modifier = Modifier.fillMaxSize(),
-                        dataList = uiData.dataList
-                    )
+                    Column(
+                        modifier = Modifier.padding(8.dp)
+                    ) {
+                        RecordingsDetailData(
+                            dataList = uiData.dataList
+                        )
+                        RecordingsDetailChart(
+                            modifier = Modifier.weight(1f),
+                            dataList = uiData.dataList
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+private fun PreviewRecordingsDetailData() {
+    val dataList = persistentListOf(
+        RecordEntry(
+            time = 10L,
+            voltage = 69.3f,
+            current = 5f,
+            soc = 69f,
+            temp = 20f
+        ),
+        RecordEntry(
+            time = 461_000L,
+            voltage = 60.3f,
+            current = -24.4f,
+            soc = 65f,
+            temp = 25f
+        ),
+        RecordEntry(
+            time = 565_000L,
+            voltage = 59.3f,
+            current = 5f,
+            soc = 60f,
+            temp = 28f
+        )
+    )
+    MaterialTheme {
+        RecordingsDetailData(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            dataList = dataList
+        )
+    }
+}
+
+@Composable
+fun RecordingsDetailData(
+    dataList: PersistentList<RecordEntry>,
+    modifier: Modifier = Modifier
+) {
+    val first = remember(dataList) { dataList.first() }
+    val last = remember(dataList) { dataList.last() }
+
+    Column(
+        modifier = modifier
+    ) {
+        Row {
+            val timeText = remember {
+                //formatDuration((last.time - first.time) / 1000)
+                ((last.time - first.time) / 1000).seconds.toString()
+            }
+            Icon(
+                imageVector = Icons.Default.HourglassFull,
+                contentDescription = null
+            )
+            Text(timeText)
+        }
+        Row {
+            val firstSocText = remember {
+                "%.0f%%"
+                    .format(first.soc)
+            }
+            Icon(
+                imageVector = getSocIcon(first.soc),
+                contentDescription = null
+            )
+            Text(firstSocText)
+            Icon(
+                imageVector = getSocIcon(last.soc),
+                contentDescription = null
+            )
+            val lastSocText = remember {
+                "%.0f%% Δ %.0f%%"
+                    .format(last.soc, last.soc - first.soc)
+            }
+            Text(lastSocText)
+
+        }
+        Row {
+            val voltageText = remember {
+                val min = dataList.minOf { it.voltage }
+                val max = dataList.maxOf { it.voltage }
+                val avg = dataList.averageOf { it.voltage }
+                "%.1f V - %.1f V Δ %.1f V min: %.1f V max: %.1f V avg: %.1f V"
+                    .format(
+                        first.voltage,
+                        last.voltage,
+                        last.voltage - first.voltage,
+                        min,
+                        max,
+                        avg
+                    )
+            }
+            Icon(
+                imageVector = Icons.Default.Bolt,
+                contentDescription = null
+            )
+            Text(voltageText)
+            //Icon(imageVector = Icons.Default., contentDescription = )
+        }
+        Row {
+            val currentText = remember {
+                val avg = dataList.averageOf { it.current }
+                val min = dataList.minOf { it.current }
+                val max = dataList.maxOf { it.current }
+                "Current min: %.1f A max: %.1f A  avg %.1f A"
+                    .format(min, max, avg)
+            }
+            Text(currentText)
+        }
+        Row {
+            val currentText = remember {
+                val avgW = dataList.averageOf { it.current * it.voltage }
+                val minW = dataList.minOf { it.current * it.voltage }
+                val maxW = dataList.maxOf { it.current * it.voltage }
+                "Power min: %.0f W max: %.0f W avg: %.0f W"
+                    .format(minW,  maxW, avgW)
+            }
+            Text(currentText)
+        }
+    }
+}
+
 @Composable
 fun RecordingsDetailChart(
     dataList: PersistentList<RecordEntry>,
@@ -180,18 +318,15 @@ fun RecordingsDetailChart(
 
     val modelProducer = remember { CartesianChartModelProducer.build() }
 
-    var timeText by remember { mutableStateOf(formatDuration(0)) }
-
     LaunchedEffect(dataList) {
         val stepList = dataList.step(30000)
-        val startTime = dataList.first().time
+
         val stepStart = stepList.first().time
         val time = stepList.map { (it.time - stepStart) / 1000 }
         val power = stepList.map { it.voltage * it.current }
         val voltage = stepList.map { it.voltage }
         val current = stepList.map { it.current }
         val soc = stepList.map { it.soc }
-        timeText = formatDuration((dataList.last().time - startTime) / 1000)
         modelProducer.tryRunTransaction {
             lineSeries {
                 series(x = time, y = voltage)
@@ -201,70 +336,64 @@ fun RecordingsDetailChart(
             }
         }
     }
-    Column(
-        modifier = modifier
-    ) {
-        Row {
-            Text("Duration: $timeText")
+    val valueFormatter = remember {
+        CartesianValueFormatter { x, _, _ ->
+            //formatDuration(x.toLong())
+            x.toLong().seconds.toString()
         }
-
-        val valueFormatter = remember {
-            CartesianValueFormatter { x, _, _ ->
-                formatDuration(x.toLong())
-            }
-        }
-        CartesianChartHost(
-            modifier = Modifier.fillMaxSize(),
-            chart = rememberCartesianChart(
-                rememberLineCartesianLayer(
-                    verticalAxisPosition = AxisPosition.Vertical.Start,
-                    axisValueOverrider = remember {
-                        AxisValueOverrider.fixed(minY = dataList.minOf { it.voltage })
-                    },
-                ),
-                rememberLineCartesianLayer(
-                    verticalAxisPosition = AxisPosition.Vertical.End,
-                    lines = listOf(
-                        LineCartesianLayer.LineSpec(
-                            shader = DynamicShader.color(Color.Green),
-                            backgroundShader = null
-                        )
-                    ),
-                ),
-                startAxis = rememberStartAxis(
-                    titleComponent = rememberTextComponent(
-                        color = Color.White,
-                        background = rememberShapeComponent(Shape.Pill, Color.Black),
-                        padding = Dimensions.of(horizontal = 8.dp, vertical = 2.dp),
-                        margins = Dimensions.of(end = 4.dp),
-                        typeface = Typeface.MONOSPACE,
-                    ),
-                    title = "V"
-                ),
-                //topAxis = rememberTopAxis(),
-                bottomAxis = rememberBottomAxis(
-                    valueFormatter = valueFormatter,
-                    itemPlacer =  AxisItemPlacer.Horizontal.default(
-                        spacing = 4,
-                        offset = 1
-                    ),
-                    guideline = null
-                ),
-                endAxis = rememberEndAxis(
-                    label = rememberAxisLabelComponent(Color.Green),
-                    titleComponent = rememberTextComponent(
-                        color = Color.Green,
-                        background = rememberShapeComponent(Shape.Pill, Color.Black),
-                        padding = Dimensions.of(horizontal = 8.dp, vertical = 2.dp),
-                        margins = Dimensions.of(end = 4.dp),
-                        typeface = Typeface.MONOSPACE,
-                    ),
-                    title = "A"
-                )
-            ),
-            modelProducer = modelProducer,
-        )
     }
+    CartesianChartHost(
+        modifier = modifier,
+        chart = rememberCartesianChart(
+            rememberLineCartesianLayer(
+                verticalAxisPosition = AxisPosition.Vertical.Start,
+                axisValueOverrider = remember {
+                    AxisValueOverrider.fixed(minY = dataList.minOf { it.voltage })
+                },
+            ),
+            rememberLineCartesianLayer(
+                verticalAxisPosition = AxisPosition.Vertical.End,
+                lines = listOf(
+                    LineCartesianLayer.LineSpec(
+                        shader = DynamicShader.color(Color.Green),
+                        backgroundShader = null
+                    )
+                ),
+            ),
+            startAxis = rememberStartAxis(
+                titleComponent = rememberTextComponent(
+                    color = Color.White,
+                    background = rememberShapeComponent(Shape.Pill, Color.Black),
+                    padding = Dimensions.of(horizontal = 8.dp, vertical = 2.dp),
+                    margins = Dimensions.of(end = 4.dp),
+                    typeface = Typeface.MONOSPACE,
+                ),
+                title = "Volt"
+            ),
+            //topAxis = rememberTopAxis(),
+            bottomAxis = rememberBottomAxis(
+                valueFormatter = valueFormatter,
+                itemPlacer =  AxisItemPlacer.Horizontal.default(
+                    spacing = 4,
+                    offset = 1
+                ),
+                //guideline = null
+            ),
+            endAxis = rememberEndAxis(
+                label = rememberAxisLabelComponent(Color.Green),
+                titleComponent = rememberTextComponent(
+                    color = Color.Green,
+                    background = rememberShapeComponent(Shape.Pill, Color.Black),
+                    padding = Dimensions.of(horizontal = 8.dp, vertical = 2.dp),
+                    margins = Dimensions.of(end = 4.dp),
+                    typeface = Typeface.MONOSPACE,
+                ),
+                title = "Amp"
+            )
+        ),
+        modelProducer = modelProducer,
+    )
+
 }
 
 data class DataPoint(val x: Float, val y: Float)
