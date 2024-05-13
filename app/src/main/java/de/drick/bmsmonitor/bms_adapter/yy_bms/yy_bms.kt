@@ -116,7 +116,7 @@ class YYBmsAdapter(private val service: BluetoothLeConnectionService): BmsInterf
                     )
                 }
                 val cellDiffVolt = event.cellVoltage[event.maxVoltageIndex] - event.cellVoltage[event.minVoltageIndex]
-                val balanceState = if (event.cellBalance.none()) "Off" else "On"
+                val balanceState = if (event.cellBalance.none { it }) "Off" else "On"
                 return GeneralCellInfo(
                     deviceInfo = deviceInfo,
                     stateOfCharge = event.soc,

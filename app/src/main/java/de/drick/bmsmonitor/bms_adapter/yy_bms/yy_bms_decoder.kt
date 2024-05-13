@@ -72,9 +72,10 @@ class YYBmsDecoder {
                 val bluetoothName = stringFromBytes(data, 83, 12)
                 val pin = stringFromBytes(data, 95, 4)
 
-                val tmpNum = buffer[103 + 3] + buffer[104 + 3] + buffer[105 + 3]
-                val mosNum = buffer[104 + 3]
-                val balaNum = buffer[105 + 3]
+                val tempNum = buffer[103 + 3] // Temp sensors aux
+                val mosNum = buffer[104 + 3]  // Temp sensors mosfet
+                val balaNum = buffer[105 + 3] // Temp sensors balancer?
+
                 val bootVersion = buffer[122 + 3]
                 val softVersion = buffer[123 + 3]
 
@@ -91,7 +92,7 @@ class YYBmsDecoder {
                 val sysRuntime = buffer.getInt(140 + 3)
                 val mcuResetCount = buffer.getShort(144 + 3)
                 val cells = buffer[151].toUByte().toInt()
-                val batType = when(buffer[149 + 3].toInt()) {
+                val batteryType = when(buffer[149 + 3].toInt()) {
                     0 -> BatteryType.TernaryLi
                     1 -> BatteryType.Lfp
                     2 -> BatteryType.Lc
@@ -109,7 +110,7 @@ class YYBmsDecoder {
                     name = bluetoothName,
                     modelName = modelTypeName,
                     serialNumber = serialnumber,
-                    batteryType = batType,
+                    batteryType = batteryType,
                     voltage = voltage,
                     current = current,
                     systemRuntime = sysRuntime
@@ -139,8 +140,8 @@ class YYBmsDecoder {
                 //But closer to the real value
                 //log ("Current: ${"%.2f".format(current)}")
                 val tmpMos = buffer[64+3].toUByte().toInt() - 40
-                val tmp1 = buffer[68].toUByte().toInt() - 40
-                val tmp2 = buffer[69].toUByte().toInt() - 40
+                val tmp1 = buffer[66+3].toUByte().toInt() - 40
+                val tmp2 = buffer[67+3].toUByte().toInt() - 40
 
                 val ratedCapacity = buffer.getShort(79).toFloat() / 10f //Rated capacity
                 val capacity2 = buffer.getShort(81).toFloat() / 10f //Fact capacity ??

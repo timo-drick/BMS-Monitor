@@ -27,6 +27,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -90,6 +91,7 @@ private fun PreviewRecordingsMapView() {
     }
 }
 
+@Stable
 data class UIDetailData(
     val duration: Duration,
     val distanceMeters: Float,
@@ -179,9 +181,9 @@ fun RecordingsMapViewData(
             "min: %.0f W max: %.0f W avg: %.0f".format( data.maxPower * -1f, data.minPower * -1f, data.avgPower * -1f)
         }
         val consumption = remember(data) {
-            val wattSecondConsumed = data.avgPower * data.duration.inWholeSeconds * -1f
-            val wattSecondPerMeter = wattSecondConsumed / data.distanceMeters
-            "%.0f Wh %.1f Wh/km".format(wattSecondConsumed / 3600f, wattSecondPerMeter)
+            val wattHourConsumed = data.avgPower * data.duration.inWholeSeconds / -3600f
+            val wattHourPerMeter = wattHourConsumed / data.distanceMeters
+            "%.0f Wh %.1f Wh/km".format(wattHourConsumed, wattHourPerMeter * 1000f)
         }
         FlowRow(
             modifier = Modifier.padding(horizontal = 8.dp),
