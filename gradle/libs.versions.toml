@@ -55,7 +55,7 @@ play-services-location = { module = "com.google.android.gms:play-services-locati
 vico-compose = { group = "com.patrykandpatrick.vico", name = "compose", version.ref = "vico" }
 vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }
 mapbox-maps = { module = "com.mapbox.maps:android", version.ref = "mapboxVersion" }
-mapbox-maps-annotation = { module = "com.mapbox.plugin:maps-annotation", version.ref = "mapboxVersion" }
+mapbox-maps-compose = { module = "com.mapbox.extension:maps-compose", version.ref = "mapboxVersion" }
 
 
 [plugins]

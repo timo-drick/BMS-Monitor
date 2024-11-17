@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import de.drick.bmsmonitor.bms_adapter.GeneralCellInfo
 import de.drick.bmsmonitor.repository.LocationPoint
 import de.drick.bmsmonitor.repository.RecordEntry
-import de.drick.bmsmonitor.ui.compose_wrapper.rememberMapBoxState
 import de.drick.bmsmonitor.ui.getSocIcon
 import de.drick.log
 import kotlinx.collections.immutable.PersistentList
@@ -264,10 +263,8 @@ fun RecordingsMapViewData(
             Text(powerText)
         }
         Spacer(Modifier.height(8.dp))
-        val mapBoxState = rememberMapBoxState()
         GpsView(
             modifier = Modifier.weight(1f),
-            mapBoxState = mapBoxState,
             gpsData = data.gps,
             currentPosition = playbackState.positionGps
         )

@@ -68,8 +68,9 @@ dependencies {
     implementation(libs.kotlinx.datetime)
 
     implementation(libs.play.services.location) //Fused location
+
     implementation(libs.mapbox.maps)
-    implementation(libs.mapbox.maps.annotation)
+    implementation(libs.mapbox.maps.compose)
 
     implementation(libs.vico.compose)    // Chart library
     implementation(libs.vico.compose.m3)

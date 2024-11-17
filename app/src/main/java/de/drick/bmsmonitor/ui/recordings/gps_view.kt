@@ -1,15 +1,20 @@
 package de.drick.bmsmonitor.ui.recordings
 
+import android.location.Location
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color.Companion.Black
 import androidx.compose.ui.graphics.Color.Companion.Green
 import androidx.compose.ui.graphics.Color.Companion.White
-import com.mapbox.maps.plugin.annotation.generated.CircleAnnotation
-import de.drick.bmsmonitor.ui.compose_wrapper.CircleStyle
-import de.drick.bmsmonitor.ui.compose_wrapper.MapBox
-import de.drick.bmsmonitor.ui.compose_wrapper.MapBoxState
-import de.drick.log
+import com.mapbox.geojson.Point
+import com.mapbox.maps.dsl.cameraOptions
+import com.mapbox.maps.extension.compose.MapboxMap
+import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
+import com.mapbox.maps.extension.compose.annotation.generated.CircleAnnotation
+import com.mapbox.maps.extension.compose.annotation.generated.CircleAnnotationState
+import com.mapbox.maps.extension.compose.annotation.generated.PolylineAnnotation
+import com.mapbox.maps.extension.compose.annotation.generated.PolylineAnnotationState
 
 data class GpsData(
     val wayPoints: List<GpsRecord>
@@ -21,70 +26,80 @@ data class GpsRecord(
     val speed: Float
 )
 
-private val styleCurrentPoint = CircleStyle(
-    radius = 4.0,
-    color = Green,
-    strokeColor = White,
-    strokeWidth = 1.0
-)
-private val styleStartPoint = CircleStyle(
-    radius = 4.0,
-    color = White,
-    strokeColor = Black,
-    strokeWidth = 1.0
-)
-private val styleEndPoint = CircleStyle(
-    radius = 4.0,
-    color = Black,
-    strokeColor = White,
-    strokeWidth = 1.0
-)
+fun GeoPoint.toPoint(): Point = Point.fromLngLat(longitude, latitude)
+fun Location.toGeoPoint() = GeoPoint(latitude = latitude, longitude = longitude)
 
-private class GpsViewState(private val mapBoxState: MapBoxState) {
-    var currentPositionPoint: CircleAnnotation? = null
-    suspend fun init(geoPoints: List<GeoPoint>) {
-        mapBoxState.resetToDefault()
-        if (geoPoints.size > 1) {
-            mapBoxState.drawOverview(geoPoints)
-            mapBoxState.drawPoint(geoPoints.first(), styleStartPoint)
-            mapBoxState.drawPoint(geoPoints.last(), styleEndPoint)
-        }
-        currentPositionPoint = mapBoxState.drawPoint(geoPoints.first(), styleCurrentPoint)
-        mapBoxState.updateCamera(geoPoints.first(), 0.0, false)
-    }
+val lineStyle = PolylineAnnotationState().apply {
+    lineWidth = 10.0
+    lineColor = Color(0xff90caf9)
+    lineBorderColor = Color(0xff1976d2)
+    lineBorderWidth = 2.0
+}
 
-    suspend fun update(currentPosition: GeoPoint) {
-        currentPositionPoint?.let { pp ->
-            log("update camera")
-            mapBoxState.updatePoint(currentPosition, pp)
-            mapBoxState.updateCamera(currentPosition, 0.0)
-        }
-    }
+val currentPosStyle = CircleAnnotationState().apply {
+    circleRadius = 8.0
+    circleColor = Green
+    circleStrokeColor = White
+    circleStrokeWidth = 2.0
+}
+
+val startPosStyle = CircleAnnotationState().apply {
+    circleRadius = 8.0
+    circleColor = White
+    circleStrokeColor = Black
+    circleStrokeWidth = 2.0
+}
+
+val endPosStyle = CircleAnnotationState().apply {
+    circleRadius = 8.0
+    circleColor = Black
+    circleStrokeColor = White
+    circleStrokeWidth = 2.0
 }
 
 @Composable
 fun GpsView(
-    mapBoxState: MapBoxState,
     gpsData: GpsData,
     currentPosition: GpsRecord,
     modifier: Modifier = Modifier
 ) {
-    val state = remember {
-        GpsViewState(mapBoxState)
+    val mapViewPortState = rememberMapViewportState {
+        setCameraOptions {
+            zoom(14.0)
+            center(currentPosition.position.toPoint())
+        }
     }
-
-    //val mapBoxState = rememberMapBoxState(frame.position)
-    LaunchedEffect(gpsData) {
-        log("launched effect start")
-        state.init(gpsData.wayPoints.map { it.position })
+    val wayPointsData = remember(gpsData) {
+        gpsData.wayPoints.map { it.position.toPoint() }
     }
-    LaunchedEffect(currentPosition) {
-        log("New position: $currentPosition")
-        state.update(currentPosition.position)
+    val currentPoint = remember(currentPosition) {
+        currentPosition.position.toPoint()
     }
-    MapBox(
+    LaunchedEffect(currentPoint) {
+        mapViewPortState.easeTo(
+            cameraOptions { center(currentPoint) },
+        )
+    }
+    val startPoint = remember(gpsData) {
+        gpsData.wayPoints.first().position.toPoint()
+    }
+    val endPoint = remember(gpsData) {
+        gpsData.wayPoints.last().position.toPoint()
+    }
+    MapboxMap(
         modifier = modifier,
-        state = mapBoxState,
-        onDisableCameraFocus = { /*TODO*/ }
-    )
+        mapViewportState = mapViewPortState,
+        scaleBar = {},
+        logo = {
+            Logo()
+        },
+        attribution = {
+            Attribution()
+        }
+    ) {
+        PolylineAnnotation(points = wayPointsData, lineStyle)
+        CircleAnnotation(currentPoint, currentPosStyle)
+        CircleAnnotation(startPoint, startPosStyle)
+        CircleAnnotation(endPoint, endPosStyle)
+    }
 }
