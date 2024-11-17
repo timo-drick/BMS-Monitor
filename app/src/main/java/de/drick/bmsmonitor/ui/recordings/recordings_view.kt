@@ -129,7 +129,7 @@ fun RecordingsView(
     Column(modifier) {
         LazyColumn(
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(8.dp)
+            contentPadding = PaddingValues(24.dp)
         ) {
             groups.forEach { (date, itemList) ->
                 stickyHeader {

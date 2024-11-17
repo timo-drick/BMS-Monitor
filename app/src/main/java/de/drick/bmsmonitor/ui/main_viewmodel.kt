@@ -64,7 +64,7 @@ class MainViewModel(private val ctx: Application): AndroidViewModel(ctx) {
     private val _markedDevices = mutableStateListOf<UIDeviceItem>()
     val markedDevices: SnapshotStateList<UIDeviceItem> = _markedDevices
 
-    var currentScreen: Screens by mutableStateOf(Screens.Main(markedDevices))
+    var currentScreen: Screens by mutableStateOf(Screens.Permission)
         private set
 
     var isRecording = BackgroundRecordingService.isRunningFlow
