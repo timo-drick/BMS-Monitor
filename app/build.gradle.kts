@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
 
@@ -53,9 +54,6 @@ android {
         compose = true
         buildConfig = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
-    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -85,6 +83,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     lintChecks(libs.compose.lint.checks) // https://slackhq.github.io/compose-lints
     implementation(platform(libs.androidx.compose.bom))
+    implementation("androidx.compose.foundation:foundation:1.7.0-beta07")
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)

@@ -121,7 +121,7 @@ fun VehicleScreen(
         } ?: MotionData(null)
     }
     val view = LocalView.current
-    LifecycleResumeEffect {
+    LifecycleResumeEffect(Unit) {
         view.keepScreenOn = true
         onPauseOrDispose {
             view.keepScreenOn = false
