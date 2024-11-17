@@ -9,12 +9,12 @@ plugins {
 
 android {
     namespace = "de.drick.bmsmonitor"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "de.drick.bmsmonitor"
         minSdk = 21
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -83,7 +83,6 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     lintChecks(libs.compose.lint.checks) // https://slackhq.github.io/compose-lints
     implementation(platform(libs.androidx.compose.bom))
-    implementation("androidx.compose.foundation:foundation:1.7.0-beta07")
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)

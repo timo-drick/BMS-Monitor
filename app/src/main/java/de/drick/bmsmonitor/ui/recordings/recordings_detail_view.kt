@@ -34,24 +34,27 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisLabelComponent
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottomAxis
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberEndAxis
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStartAxis
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottom
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberEnd
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStart
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
-import com.patrykandpatrick.vico.compose.common.of
-import com.patrykandpatrick.vico.compose.common.shader.color
-import com.patrykandpatrick.vico.core.cartesian.axis.AxisItemPlacer
-import com.patrykandpatrick.vico.core.cartesian.axis.AxisPosition
-import com.patrykandpatrick.vico.core.cartesian.data.AxisValueOverrider
+import com.patrykandpatrick.vico.compose.common.dimensions
+import com.patrykandpatrick.vico.compose.common.fill
+import com.patrykandpatrick.vico.core.cartesian.axis.Axis
+import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
+import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.core.common.Dimensions
+import com.patrykandpatrick.vico.core.common.Fill
 import com.patrykandpatrick.vico.core.common.shader.DynamicShader
+import com.patrykandpatrick.vico.core.common.shape.CorneredShape
 import com.patrykandpatrick.vico.core.common.shape.Shape
 import de.drick.bmsmonitor.bms_adapter.BmsType
 import de.drick.bmsmonitor.bms_adapter.GeneralCellInfo
@@ -316,7 +319,7 @@ fun RecordingsDetailChart(
     modifier: Modifier = Modifier
 ) {
 
-    val modelProducer = remember { CartesianChartModelProducer.build() }
+    val modelProducer = remember { CartesianChartModelProducer() }
 
     LaunchedEffect(dataList) {
         val stepList = dataList.step(30000)
@@ -327,7 +330,7 @@ fun RecordingsDetailChart(
         val voltage = stepList.map { it.voltage }
         val current = stepList.map { it.current }
         val soc = stepList.map { it.soc }
-        modelProducer.tryRunTransaction {
+        modelProducer.runTransaction {
             lineSeries {
                 series(x = time, y = voltage)
             }
@@ -339,53 +342,47 @@ fun RecordingsDetailChart(
     val valueFormatter = remember {
         CartesianValueFormatter { x, _, _ ->
             //formatDuration(x.toLong())
-            x.toLong().seconds.toString()
+            x.toString()
         }
     }
     CartesianChartHost(
         modifier = modifier,
         chart = rememberCartesianChart(
             rememberLineCartesianLayer(
-                verticalAxisPosition = AxisPosition.Vertical.Start,
-                axisValueOverrider = remember {
-                    AxisValueOverrider.fixed(minY = dataList.minOf { it.voltage })
-                },
+                verticalAxisPosition = Axis.Position.Vertical.Start,
             ),
             rememberLineCartesianLayer(
-                verticalAxisPosition = AxisPosition.Vertical.End,
-                lines = listOf(
-                    LineCartesianLayer.LineSpec(
-                        shader = DynamicShader.color(Color.Green),
-                        backgroundShader = null
+                verticalAxisPosition = Axis.Position.Vertical.End,
+                lineProvider = LineCartesianLayer.LineProvider.series(
+                    LineCartesianLayer.rememberLine(
+                        remember { LineCartesianLayer.LineFill.single(fill(Color.Green)) }
                     )
                 ),
             ),
-            startAxis = rememberStartAxis(
+            startAxis = VerticalAxis.rememberStart(
                 titleComponent = rememberTextComponent(
                     color = Color.White,
-                    background = rememberShapeComponent(Shape.Pill, Color.Black),
-                    padding = Dimensions.of(horizontal = 8.dp, vertical = 2.dp),
-                    margins = Dimensions.of(end = 4.dp),
+                    background = rememberShapeComponent(Color.Black, CorneredShape.Pill),
+                    padding = dimensions(horizontal = 8.dp, vertical = 2.dp),
+                    margins = dimensions(end = 4.dp),
                     typeface = Typeface.MONOSPACE,
                 ),
                 title = "Volt"
             ),
             //topAxis = rememberTopAxis(),
-            bottomAxis = rememberBottomAxis(
+            bottomAxis = HorizontalAxis.rememberBottom(
                 valueFormatter = valueFormatter,
-                itemPlacer =  AxisItemPlacer.Horizontal.default(
-                    spacing = 4,
-                    offset = 1
-                ),
-                //guideline = null
+                itemPlacer = remember {
+                    HorizontalAxis.ItemPlacer.aligned(offset = 1, spacing = 4)
+                },
             ),
-            endAxis = rememberEndAxis(
+            endAxis = VerticalAxis.rememberEnd(
                 label = rememberAxisLabelComponent(Color.Green),
                 titleComponent = rememberTextComponent(
                     color = Color.Green,
-                    background = rememberShapeComponent(Shape.Pill, Color.Black),
-                    padding = Dimensions.of(horizontal = 8.dp, vertical = 2.dp),
-                    margins = Dimensions.of(end = 4.dp),
+                    background = rememberShapeComponent(Color.Black, CorneredShape.Pill),
+                    padding = dimensions(horizontal = 8.dp, vertical = 2.dp),
+                    margins = dimensions(end = 4.dp),
                     typeface = Typeface.MONOSPACE,
                 ),
                 title = "Amp"
