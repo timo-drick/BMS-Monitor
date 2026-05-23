@@ -1,6 +1,7 @@
 package de.drick.compose.permission
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.annotation.TargetApi
 import android.content.*
 import android.os.Build
@@ -14,17 +15,21 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
+
+
+private inline fun checkApiLevel(apiLevel: Int, block: () -> String): String {
+    return if (Build.VERSION.SDK_INT >= apiLevel) block() else "NA"
+}
 
 enum class ManifestPermission(val permission: String, val minApiLevel: Int) {
-    @TargetApi(33)
-    POST_NOTIFICATIONS(Manifest.permission.POST_NOTIFICATIONS, 33),
+    POST_NOTIFICATIONS(checkApiLevel(33) { Manifest.permission.POST_NOTIFICATIONS }, 33),
     ACCESS_FINE_LOCATION(Manifest.permission.ACCESS_FINE_LOCATION, 1),
-    @TargetApi(29)
-    ACTIVITY_RECOGNITION(Manifest.permission.ACTIVITY_RECOGNITION, 29),
-    @TargetApi(31)
-    BLUETOOTH_CONNECT(Manifest.permission.BLUETOOTH_CONNECT, 31),
-    @TargetApi(31)
-    BLUETOOTH_SCAN(Manifest.permission.BLUETOOTH_SCAN, 31)
+    ACTIVITY_RECOGNITION(checkApiLevel(29) { Manifest.permission.ACTIVITY_RECOGNITION }, 29),
+    BLUETOOTH_CONNECT(checkApiLevel(31) { Manifest.permission.BLUETOOTH_CONNECT }, 31),
+    BLUETOOTH_SCAN(checkApiLevel(31) { Manifest.permission.BLUETOOTH_SCAN }, 31)
 }
 
 /**

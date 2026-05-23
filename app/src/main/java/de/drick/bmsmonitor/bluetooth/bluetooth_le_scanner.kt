@@ -100,12 +100,12 @@ fun bluetoothLeScannerFlow(
             val settings = ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                 .build()
-            bluetoothLeScanner.startScan(null, settings, scanCallback)
+            bluetoothLeScanner?.startScan(null, settings, scanCallback)
         }
         awaitClose {
             if (ManifestPermission.BLUETOOTH_SCAN.checkPermission(ctx)) {
                 log("Start scanning")
-                bluetoothLeScanner.stopScan(scanCallback)
+                bluetoothLeScanner?.stopScan(scanCallback)
             }
         }
     }
@@ -155,14 +155,14 @@ class KBluetoothLeScanner(
     fun start(filterList: ImmutableList<ScanFilter>, settings: ScanSettings) {
         if (ManifestPermission.BLUETOOTH_SCAN.checkPermission(ctx)) {
             log("Start scanning")
-            bluetoothLeScanner.startScan(filterList, settings, scanCallback)
+            bluetoothLeScanner?.startScan(filterList, settings, scanCallback)
         }
     }
 
     fun stop() {
         if (ManifestPermission.BLUETOOTH_SCAN.checkPermission(ctx)) {
             log("Stop scanning")
-            bluetoothLeScanner.stopScan(scanCallback)
+            bluetoothLeScanner?.stopScan(scanCallback)
         }
     }
 }

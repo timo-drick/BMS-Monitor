@@ -1,7 +1,6 @@
 package de.drick.bmsmonitor.ui.recordings
 
 import android.content.Context
-import android.graphics.Typeface
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.Canvas
@@ -40,9 +39,6 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStart
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
-import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
-import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
-import com.patrykandpatrick.vico.compose.common.dimensions
 import com.patrykandpatrick.vico.compose.common.fill
 import com.patrykandpatrick.vico.core.cartesian.axis.Axis
 import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
@@ -51,11 +47,6 @@ import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
-import com.patrykandpatrick.vico.core.common.Dimensions
-import com.patrykandpatrick.vico.core.common.Fill
-import com.patrykandpatrick.vico.core.common.shader.DynamicShader
-import com.patrykandpatrick.vico.core.common.shape.CorneredShape
-import com.patrykandpatrick.vico.core.common.shape.Shape
 import de.drick.bmsmonitor.bms_adapter.BmsType
 import de.drick.bmsmonitor.bms_adapter.GeneralCellInfo
 import de.drick.bmsmonitor.repository.HeaderData
@@ -359,33 +350,16 @@ fun RecordingsDetailChart(
                     )
                 ),
             ),
-            startAxis = VerticalAxis.rememberStart(
-                titleComponent = rememberTextComponent(
-                    color = Color.White,
-                    background = rememberShapeComponent(Color.Black, CorneredShape.Pill),
-                    padding = dimensions(horizontal = 8.dp, vertical = 2.dp),
-                    margins = dimensions(end = 4.dp),
-                    typeface = Typeface.MONOSPACE,
-                ),
-                title = "Volt"
-            ),
+            startAxis = VerticalAxis.rememberStart(),
             //topAxis = rememberTopAxis(),
             bottomAxis = HorizontalAxis.rememberBottom(
                 valueFormatter = valueFormatter,
                 itemPlacer = remember {
-                    HorizontalAxis.ItemPlacer.aligned(offset = 1, spacing = 4)
+                    HorizontalAxis.ItemPlacer.aligned(offset = { 1 }, spacing = { 4 })
                 },
             ),
             endAxis = VerticalAxis.rememberEnd(
-                label = rememberAxisLabelComponent(Color.Green),
-                titleComponent = rememberTextComponent(
-                    color = Color.Green,
-                    background = rememberShapeComponent(Color.Black, CorneredShape.Pill),
-                    padding = dimensions(horizontal = 8.dp, vertical = 2.dp),
-                    margins = dimensions(end = 4.dp),
-                    typeface = Typeface.MONOSPACE,
-                ),
-                title = "Amp"
+                label = rememberAxisLabelComponent(Color.Green)
             )
         ),
         modelProducer = modelProducer,
